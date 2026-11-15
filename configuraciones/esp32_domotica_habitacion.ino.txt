@@ -1,0 +1,1140 @@
+/*
+ * =====================================================================================
+ *  SISTEMA DOMÓTICO ESP32 — v3 (integración LEANDRO HOME SERVER)
+ *  Monitoreo ambiental (DHT11) + diagnóstico computacional + Google Home + Telegram
+ *  Proyecto: Fundamentos de Infraestructura Computacional — Universidad del Quindío
+ * =====================================================================================
+ *
+ *  CONSERVADO DEL CÓDIGO ORIGINAL (sin cambios de pines ni de conexiones):
+ *    - Relé en G26, activo en HIGH, lógica de conmutación (circuito de 3 vías).
+ *    - DHT11 en G4, lectura cada 2,5 s.
+ *    - OLED SSD1306 128x64 por I2C en 0x3C (SDA = G21, SCL = G22).
+ *    - WiFi + Sinric Pro (Google Home).
+ *
+ *  NUEVO (solo software):
+ *    - Monitoreo de CPU (frecuencia, núcleos, uso estimado, temperatura interna).
+ *    - Monitoreo de RAM (heap total, libre, usada, mínimo histórico, bloque máximo).
+ *    - Supervisión y reconexión WiFi, RSSI y calidad estimada.
+ *    - OLED con 3 páginas automáticas e icono WiFi de 3 barras.
+ *    - Bot de Telegram en una tarea FreeRTOS propia, con lista blanca de usuarios.
+ *
+ *  v3 (Etapa 10 de LEANDRO HOME SERVER):
+ *    - Usuario MQTT propio: "esp32-habitacion" (antes el compartido "esp32").
+ *    - LWT: Mosquitto publica "offline" en domotica/habitacion/conexion si el ESP32
+ *      desaparece; al conectar, el ESP32 publica "online" (ambos retenidos).
+ *
+ *  Bibliotecas: SinricPro, WebSockets, ArduinoJson, DHT sensor library,
+ *  Adafruit Unified Sensor, Adafruit GFX, Adafruit SSD1306, Adafruit BusIO,
+ *  UniversalTelegramBot (Brian Lough), PubSubClient. WiFiClientSecure viene con el núcleo ESP32.
+ * =====================================================================================
+ */
+
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <SinricPro.h>
+#include <SinricProSwitch.h>
+
+#include <DHT.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+#include <UniversalTelegramBot.h>
+#include <ArduinoOTA.h>            // <<< OTA: actualización del programa por WiFi
+#include <PubSubClient.h>          // <<< MQTT: envío de datos a la Orange Pi
+
+#include "esp_freertos_hooks.h"   // Ganchos de la tarea IDLE (estimación de uso de CPU)
+#include "esp_timer.h"            // Reloj de 64 bits en microsegundos (uptime)
+
+// =====================================================================================
+// CONFIGURACIÓN WIFI  (escribe aquí tus datos; no los publiques)
+// =====================================================================================
+
+#define WIFI_SSID "DANIELA 2.4GHz"
+#define WIFI_PASS "****"
+
+// =================================
+// CREDENCIALES SINRIC PRO
+// =================================
+
+#define APP_KEY    "****"
+#define APP_SECRET "****"
+#define SWITCH_ID  "6aed82747d04ce9fd63e3357"
+
+// =====================================================================================
+// CREDENCIALES TELEGRAM  (ver instrucciones: @BotFather y @userinfobot)
+// =====================================================================================
+
+#define TELEGRAM_BOT_TOKEN "****"
+#define TELEGRAM_CHAT_ID   "1532031923"
+
+// Lista blanca: IDs de Telegram autorizados. Para agregar más personas:
+// { TELEGRAM_CHAT_ID, "123456789" }
+const char *const USUARIOS_AUTORIZADOS[] = { TELEGRAM_CHAT_ID };
+const size_t NUM_USUARIOS_AUTORIZADOS = sizeof(USUARIOS_AUTORIZADOS) / sizeof(USUARIOS_AUTORIZADOS[0]);
+
+// =====================================================================================
+// ACTUALIZACIÓN POR WIFI (OTA)   <<< OTA
+// =====================================================================================
+
+#define OTA_NOMBRE "domotica-habitacion"   // Nombre que aparece en Herramientas > Puerto
+#define OTA_CLAVE  "****"          // Cambia esto por una clave tuya
+
+// =====================================================================================
+// MQTT (servidor Mosquitto en la Orange Pi)   <<< MQTT
+// =====================================================================================
+
+#define MQTT_SERVIDOR      "192.168.1.9"                   // IP de la Orange Pi
+#define MQTT_PUERTO        1883
+#define MQTT_USUARIO       "esp32-habitacion"              // <<< v3: usuario propio
+#define MQTT_CLAVE         "****"
+#define MQTT_TEMA_CONEXION "domotica/habitacion/conexion"  // <<< v3: online / offline (LWT)
+#define MQTT_TEMA_ESTADO   "domotica/habitacion/estado"    // Aquí publica los datos
+#define MQTT_TEMA_LUZ      "domotica/habitacion/luz/set"   // Aquí recibe ON / OFF / TOGGLE
+const unsigned long INTERVALO_MQTT = 10000;                // Envío cada 10 s
+
+// =====================================================================================
+// CONFIGURACIÓN DEL RELÉ  (sin cambios)
+// =====================================================================================
+
+#define RELAY_PIN 26
+
+// Relé activo en HIGH
+#define RELAY_ON HIGH
+#define RELAY_OFF LOW
+
+// =====================================================================================
+// CONFIGURACIÓN DEL DHT11 Y LA PANTALLA
+// =====================================================================================
+
+#define DHT_PIN  4          // DATA del DHT11 en G4
+#define DHT_TYPE DHT11      // <<< CAMBIO: antes DHT22
+DHT dht(DHT_PIN, DHT_TYPE);
+
+// Solo si alimentas el DHT11 desde un GPIO (por ejemplo 16). Con -1 no se usa
+// y el comportamiento es idéntico al código original.
+#define DHT_PIN_ALIMENTACION -1
+
+#define OLED_ANCHO 128
+#define OLED_ALTO  64
+#define OLED_DIR   0x3C     // Dirección I2C de la OLED (resistencia en "0x78" de la placa)
+Adafruit_SSD1306 pantalla(OLED_ANCHO, OLED_ALTO, &Wire, -1);
+bool pantallaDisponible = false;
+
+const unsigned long INTERVALO_DHT = 2500;   // El DHT11 necesita mínimo 1 s entre lecturas
+unsigned long ultimaLectura = 0;
+float temperatura = NAN;
+float humedad = NAN;
+
+// =====================================================================================
+// INTERVALOS DE LAS TAREAS PERIÓDICAS (ms)
+// =====================================================================================
+
+const unsigned long INTERVALO_PANTALLA     = 1000;  // Redibujo de la OLED
+const unsigned long INTERVALO_PAGINA       = 4500;  // Cambio automático de página
+const unsigned long DURACION_PAGINAS[3]    = {1200000, 8000, 8000};  // <<< CAMBIO: Ambiente, Procesador, Memoria (ms)
+const unsigned long INTERVALO_RENDIMIENTO  = 1000;  // Uso de CPU / uptime
+const unsigned long INTERVALO_TEMP_CHIP    = 5000;  // Temperatura interna del chip
+const unsigned long INTERVALO_MEMORIA      = 2000;  // Heap
+const unsigned long INTERVALO_WIFI         = 2000;  // RSSI / estado
+const unsigned long INTERVALO_REINTENTO_WIFI = 15000; // Reintento de reconexión
+const unsigned long INTERVALO_TELEGRAM     = 3000;  // Consulta de mensajes (configurable)
+
+// =====================================================================================
+// ESTADO COMPARTIDO ENTRE TAREAS (protegido por mutex)
+// =====================================================================================
+
+struct EstadoSistema {
+  // Ambiente (DHT11) — variable principal del proyecto
+  float temperatura;
+  float humedad;
+  bool  dhtValido;
+
+  // Procesador
+  char     modelo[24];
+  uint8_t  nucleos;
+  uint32_t cpuMHz;
+  float    usoCpu[2];          // % estimado por núcleo
+  bool     usoCpuValido;
+  float    tempChip;           // Temperatura interna del microcontrolador
+  bool     tempChipDisponible;
+  uint64_t uptimeS;
+
+  // Memoria
+  uint32_t heapTotal;
+  uint32_t heapLibre;
+  uint32_t heapMinLibre;
+  uint32_t heapBloqueMax;
+  uint32_t pilaTelegramLibre;
+
+  // WiFi
+  bool    wifiConectado;
+  int32_t rssi;
+  char    ssid[33];
+  char    ip[16];
+};
+
+EstadoSistema datos = {};
+SemaphoreHandle_t mutexDatos = nullptr;
+SemaphoreHandle_t mutexRele  = nullptr;
+
+// Copia segura del estado para leerlo sin mantener el mutex tomado
+EstadoSistema leerDatos() {
+  EstadoSistema copia = {};
+  if (xSemaphoreTake(mutexDatos, pdMS_TO_TICKS(100)) == pdTRUE) {
+    copia = datos;
+    xSemaphoreGive(mutexDatos);
+  }
+  return copia;
+}
+
+// =====================================================================================
+// CONTROL DEL RELÉ (circuito conmutado / 3 vías)
+// Cada orden invierte el relé, como un segundo suiche.
+// =====================================================================================
+
+bool estadoRele = false;   // Posición física del relé: false = NC (reposo), true = NO
+bool luzLogica  = false;   // Estado de la luz según las órdenes remotas (ver limitaciones)
+
+// Sincronización con Sinric Pro cuando la orden viene de Telegram.
+// Sinric Pro solo se usa desde loop(), por eso se pasa un aviso en lugar de llamarlo aquí.
+volatile bool syncSinricPendiente = false;
+volatile bool syncSinricValor     = false;
+
+// Conmuta el relé. Toda conmutación pasa por aquí (Google Home y Telegram).
+// Cada conmutación invierte la luz, por eso luzLogica se invierte junto con el relé.
+bool conmutarRele() {
+  xSemaphoreTake(mutexRele, portMAX_DELAY);
+  estadoRele = !estadoRele;
+  digitalWrite(RELAY_PIN, estadoRele ? RELAY_ON : RELAY_OFF);
+  luzLogica = !luzLogica;
+  bool luz = luzLogica;
+  xSemaphoreGive(mutexRele);
+  return luz;
+}
+
+// Lectura consistente del relé y de la luz desde cualquier tarea
+void leerEstadoRele(bool &rele, bool &luz) {
+  xSemaphoreTake(mutexRele, portMAX_DELAY);
+  rele = estadoRele;
+  luz  = luzLogica;
+  xSemaphoreGive(mutexRele);
+}
+
+// Orden explícita (Telegram /encender y /apagar): solo conmuta si hace falta.
+// Devuelve true si conmutó el relé.
+bool fijarLuz(bool encender) {
+  bool conmuto = false;
+  xSemaphoreTake(mutexRele, portMAX_DELAY);
+  if (luzLogica != encender) {
+    estadoRele = !estadoRele;
+    digitalWrite(RELAY_PIN, estadoRele ? RELAY_ON : RELAY_OFF);
+    luzLogica = encender;
+    conmuto = true;
+  }
+  xSemaphoreGive(mutexRele);
+  return conmuto;
+}
+
+// Callback de Google Home / Sinric Pro.
+// COMPORTAMIENTO ORIGINAL CONSERVADO: cada orden conmuta el relé, sin importar si
+// es "encender" o "apagar", y responde true con el estado solicitado.
+bool onPowerState(const String &deviceId, bool &state) {
+
+  conmutarRele();
+
+  Serial.printf("Orden de Google: %s -> rele conmutado a %s\n",
+                state ? "ENCENDER" : "APAGAR",
+                estadoRele ? "NO" : "NC");
+
+  return true;
+}
+
+// Envía a Sinric Pro el nuevo estado cuando la luz se cambió desde Telegram,
+// para que la app de Google Home muestre el mismo estado. Se ejecuta en loop().
+void sincronizarSinric() {
+  if (!syncSinricPendiente) return;
+  syncSinricPendiente = false;
+  SinricProSwitch &mySwitch = SinricPro[SWITCH_ID];
+  mySwitch.sendPowerStateEvent(syncSinricValor, "PHYSICAL_INTERACTION");
+}
+
+// =====================================================================================
+// LECTURA DEL DHT11 (temperatura ambiente de la habitación)
+// =====================================================================================
+
+// Lee el sensor cada 2,5 s sin bloquear el programa
+void actualizarSensor() {
+  if (millis() - ultimaLectura < INTERVALO_DHT) return;
+  ultimaLectura = millis();
+
+  float t = dht.readTemperature();
+  float h = dht.readHumidity();
+
+  if (isnan(t) || isnan(h)) {
+    Serial.println("[DHT11] Error de lectura");
+    temperatura = NAN;
+    humedad = NAN;
+  } else {
+        // Promedio suavizado: cada lectura nueva pesa 20 %, así no salta tanto
+    temperatura = isnan(temperatura) ? t : temperatura * 0.8f + t * 0.2f;
+    humedad     = isnan(humedad)     ? h : humedad     * 0.8f + h * 0.2f;
+    Serial.printf("[DHT11] Temperatura: %.1f C | Humedad: %.0f %%\n", t, h);
+  }
+
+  if (xSemaphoreTake(mutexDatos, pdMS_TO_TICKS(50)) == pdTRUE) {
+    datos.temperatura = temperatura;
+    datos.humedad     = humedad;
+    datos.dhtValido   = !isnan(temperatura) && !isnan(humedad);
+    xSemaphoreGive(mutexDatos);
+  }
+}
+
+// =====================================================================================
+// MONITOREO DEL PROCESADOR
+// =====================================================================================
+//
+// Uso de CPU estimado con los ganchos de la tarea IDLE de FreeRTOS (uno por núcleo).
+// El gancho devuelve true, así la tarea IDLE ejecuta "waiti" y espera la siguiente
+// interrupción. Con el tick a 1000 Hz, en cada milisegundo con tiempo libre el gancho
+// se ejecuta al menos una vez:
+//     % libre ≈ llamadas_al_gancho / ticks_transcurridos × 100
+//     % uso   = 100 − % libre   (acotado entre 0 y 100)
+// Es una estimación con resolución de tick, no una medición exacta (ver limitaciones).
+
+volatile uint32_t contadorIdle[2] = {0, 0};
+
+bool ganchoIdleNucleo0() { contadorIdle[0]++; return true; }
+bool ganchoIdleNucleo1() { contadorIdle[1]++; return true; }
+
+bool ganchosCpuActivos = false;
+
+// La lectura interna del ESP32 clásico devuelve 53,3 °C fijos (valor bruto 128 °F)
+// en los chips que no tienen el sensor habilitado. En ese caso se marca "no disponible".
+const float TEMP_CHIP_SIN_SENSOR = 53.33f;
+
+void actualizarRendimiento() {
+  static unsigned long ultimo = 0;
+  static unsigned long ultimoTempChip = 0;
+  static uint32_t idlePrevio[2] = {0, 0};
+  static int64_t  tiempoPrevio = 0;
+  static bool     primeraMedicion = true;
+
+  if (millis() - ultimo < INTERVALO_RENDIMIENTO) return;
+  ultimo = millis();
+
+  int64_t ahoraUs = esp_timer_get_time();
+  float usos[2] = {NAN, NAN};
+  bool valido = false;
+
+  if (ganchosCpuActivos) {
+    uint32_t idleActual[2] = {contadorIdle[0], contadorIdle[1]};
+    if (!primeraMedicion) {
+      float ticks = (float)(ahoraUs - tiempoPrevio) / 1000000.0f * (float)configTICK_RATE_HZ;
+      if (ticks > 0) {
+        for (int c = 0; c < 2; c++) {
+          float libre = (float)(idleActual[c] - idlePrevio[c]) * 100.0f / ticks;
+          if (libre > 100.0f) libre = 100.0f;
+          usos[c] = 100.0f - libre;
+          if (usos[c] < 0.0f) usos[c] = 0.0f;
+        }
+        valido = true;
+      }
+    }
+    idlePrevio[0] = idleActual[0];
+    idlePrevio[1] = idleActual[1];
+    tiempoPrevio = ahoraUs;
+    primeraMedicion = false;
+  }
+
+  // Temperatura interna del chip (métrica secundaria, independiente del DHT11)
+  bool leerTempChip = (millis() - ultimoTempChip >= INTERVALO_TEMP_CHIP) || ultimoTempChip == 0;
+  float tChip = NAN;
+  if (leerTempChip) {
+    ultimoTempChip = millis();
+    tChip = temperatureRead();
+  }
+
+  if (xSemaphoreTake(mutexDatos, pdMS_TO_TICKS(50)) == pdTRUE) {
+    datos.cpuMHz = getCpuFrequencyMhz();
+    datos.uptimeS = (uint64_t)(ahoraUs / 1000000LL);
+    datos.usoCpuValido = valido;
+    if (valido) {
+      datos.usoCpu[0] = usos[0];
+      datos.usoCpu[1] = usos[1];
+    }
+    if (leerTempChip) {
+      datos.tempChipDisponible = !isnan(tChip) && fabsf(tChip - TEMP_CHIP_SIN_SENSOR) > 0.2f;
+      datos.tempChip = tChip;
+    }
+    xSemaphoreGive(mutexDatos);
+  }
+}
+
+// =====================================================================================
+// MONITOREO DE MEMORIA RAM
+// =====================================================================================
+
+TaskHandle_t tareaTelegramHandle = nullptr;
+
+void actualizarMemoria() {
+  static unsigned long ultimo = 0;
+  if (millis() - ultimo < INTERVALO_MEMORIA) return;
+  ultimo = millis();
+
+  uint32_t total  = ESP.getHeapSize();     // Heap interno disponible para la aplicación
+  uint32_t libre  = ESP.getFreeHeap();     // Heap libre ahora
+  uint32_t minimo = ESP.getMinFreeHeap();  // Menor heap libre desde el arranque
+  uint32_t bloque = ESP.getMaxAllocHeap(); // Bloque contiguo más grande (fragmentación)
+  uint32_t pila   = tareaTelegramHandle ? uxTaskGetStackHighWaterMark(tareaTelegramHandle) : 0;
+
+  if (xSemaphoreTake(mutexDatos, pdMS_TO_TICKS(50)) == pdTRUE) {
+    datos.heapTotal = total;
+    datos.heapLibre = libre;
+    datos.heapMinLibre = minimo;
+    datos.heapBloqueMax = bloque;
+    datos.pilaTelegramLibre = pila;
+    xSemaphoreGive(mutexDatos);
+  }
+}
+
+// =====================================================================================
+// MONITOREO WIFI
+// =====================================================================================
+
+// Calidad estimada a partir del RSSI: 2 × (RSSI + 100), acotada a 0–100 %.
+// Es una aproximación lineal de uso común, no un dato que entregue el chip.
+int calidadWiFi(int32_t rssi) {
+  int q = 2 * ((int)rssi + 100);
+  if (q < 0) q = 0;
+  if (q > 100) q = 100;
+  return q;
+}
+
+// Niveles del icono: 3 = excelente (≥ −60 dBm), 2 = media (−60 a −75), 1 = baja (< −75)
+int nivelWiFi(bool conectado, int32_t rssi) {
+  if (!conectado) return 0;
+  if (rssi >= -60) return 3;
+  if (rssi >= -75) return 2;
+  return 1;
+}
+
+void actualizarWiFi() {
+  static unsigned long ultimo = 0;
+  static unsigned long ultimoReintento = 0;
+  static bool estabaConectado = true;
+
+  if (millis() - ultimo < INTERVALO_WIFI) return;
+  ultimo = millis();
+
+  bool conectado = (WiFi.status() == WL_CONNECTED);
+  int32_t rssi = conectado ? WiFi.RSSI() : 0;
+  String ssid = conectado ? WiFi.SSID() : String("");
+  String ip   = conectado ? WiFi.localIP().toString() : String("0.0.0.0");
+
+  if (conectado != estabaConectado) {
+    Serial.printf("[WiFi] %s\n", conectado ? "Reconectado" : "Conexion perdida");
+    estabaConectado = conectado;
+  }
+
+  // Reconexión no bloqueante: un intento cada 15 s mientras no haya conexión
+  if (!conectado && millis() - ultimoReintento >= INTERVALO_REINTENTO_WIFI) {
+    ultimoReintento = millis();
+    Serial.println("[WiFi] Intentando reconectar...");
+    WiFi.reconnect();
+  }
+
+  if (xSemaphoreTake(mutexDatos, pdMS_TO_TICKS(50)) == pdTRUE) {
+    datos.wifiConectado = conectado;
+    datos.rssi = rssi;
+    strlcpy(datos.ssid, ssid.c_str(), sizeof(datos.ssid));
+    strlcpy(datos.ip, ip.c_str(), sizeof(datos.ip));
+    xSemaphoreGive(mutexDatos);
+  }
+}
+
+// =====================================================================================
+// UTILIDADES DE FORMATO
+// =====================================================================================
+
+void formatearUptime(uint64_t s, char *buf, size_t tam) {
+  uint32_t dias = s / 86400ULL;
+  uint32_t h = (s % 86400ULL) / 3600ULL;
+  uint32_t m = (s % 3600ULL) / 60ULL;
+  uint32_t seg = s % 60ULL;
+  if (dias > 0) snprintf(buf, tam, "%lud %02lu:%02lu:%02lu", (unsigned long)dias, (unsigned long)h, (unsigned long)m, (unsigned long)seg);
+  else          snprintf(buf, tam, "%02lu:%02lu:%02lu", (unsigned long)h, (unsigned long)m, (unsigned long)seg);
+}
+
+uint32_t porcentajeHeapUsado(const EstadoSistema &d) {
+  if (d.heapTotal == 0 || d.heapLibre > d.heapTotal) return 0;
+  return (uint32_t)((uint64_t)(d.heapTotal - d.heapLibre) * 100ULL / d.heapTotal);
+}
+
+// =====================================================================================
+// PANTALLA OLED — 3 páginas automáticas
+// =====================================================================================
+
+uint8_t paginaActual = 0;               // 0 = Ambiente, 1 = Procesador, 2 = Memoria
+const uint8_t NUM_PAGINAS = 3;
+
+// Icono WiFi de 3 barras (11 x 8 px) en la esquina superior derecha
+void dibujarIconoWiFi(int16_t x, int16_t y, bool conectado, int32_t rssi) {
+  if (!conectado) {
+    // Desconectado: una "x" pequeña
+    pantalla.drawLine(x + 2, y + 1, x + 8, y + 7, SSD1306_WHITE);
+    pantalla.drawLine(x + 8, y + 1, x + 2, y + 7, SSD1306_WHITE);
+    return;
+  }
+  int nivel = nivelWiFi(conectado, rssi);
+  const uint8_t alturas[3] = {3, 5, 8};
+  for (int i = 0; i < 3; i++) {
+    int16_t bx = x + i * 4;
+    int16_t by = y + 8 - alturas[i];
+    if (i < nivel) pantalla.fillRect(bx, by, 3, alturas[i], SSD1306_WHITE);
+    else           pantalla.drawRect(bx, by, 3, alturas[i], SSD1306_WHITE);
+  }
+}
+
+// Encabezado común: título, indicador de página y WiFi, línea divisoria
+void dibujarEncabezado(const char *titulo, const EstadoSistema &d) {
+  pantalla.setTextSize(1);
+  pantalla.setCursor(0, 0);
+  pantalla.print(titulo);
+
+  for (uint8_t i = 0; i < NUM_PAGINAS; i++) {
+    int16_t cx = 99 + i * 5;
+    if (i == paginaActual) pantalla.fillCircle(cx, 3, 1, SSD1306_WHITE);
+    else                   pantalla.drawPixel(cx, 3, SSD1306_WHITE);
+  }
+
+  dibujarIconoWiFi(116, 0, d.wifiConectado, d.rssi);
+  pantalla.drawFastHLine(0, 10, OLED_ANCHO, SSD1306_WHITE);
+}
+
+// PÁGINA 1: AMBIENTE (temperatura DHT11 como dato principal)
+void mostrarPaginaAmbiental(const EstadoSistema &d) {
+  dibujarEncabezado("AMBIENTE", d);
+
+  if (!d.dhtValido) {
+    pantalla.setTextSize(1);
+    pantalla.setCursor(0, 20);
+    pantalla.print("Sin lectura DHT11");
+    pantalla.setCursor(0, 31);
+    pantalla.print("Revise la conexion");
+  } else {
+    pantalla.setTextSize(3);
+    pantalla.setCursor(4, 16);
+    pantalla.print(d.temperatura, 1);
+    pantalla.setTextSize(2);
+    pantalla.write(248);                 // Símbolo de grados (cp437)
+    pantalla.print("C");
+  }
+
+  pantalla.setTextSize(1);
+  pantalla.setCursor(0, 45);
+  pantalla.print("Humedad: ");
+  if (d.dhtValido) { pantalla.print(d.humedad, 0); pantalla.print(" %"); }
+  else             { pantalla.print("--"); }
+
+  pantalla.setCursor(0, 56);
+  pantalla.print(d.wifiConectado ? "WiFi: conectado" : "WiFi: sin conexion");
+}
+
+// PÁGINA 2: PROCESADOR
+void mostrarPaginaCPU(const EstadoSistema &d) {
+  dibujarEncabezado("PROCESADOR", d);
+  pantalla.setTextSize(1);
+
+  pantalla.setCursor(0, 13);
+  pantalla.print(d.modelo);
+
+  pantalla.setCursor(0, 23);
+  pantalla.printf("CPU: %lu MHz x%u", (unsigned long)d.cpuMHz, (unsigned)d.nucleos);
+
+  pantalla.setCursor(0, 33);
+  if (d.usoCpuValido) pantalla.printf("Uso: C0 %.0f%%  C1 %.0f%%", d.usoCpu[0], d.usoCpu[1]);
+  else                pantalla.print("Uso: calculando...");
+
+  pantalla.setCursor(0, 43);
+  if (d.tempChipDisponible) { pantalla.print("Chip: "); pantalla.print(d.tempChip, 1); pantalla.write(248); pantalla.print("C int."); }
+  else                      { pantalla.print("Chip: No disponible"); }
+
+  char up[20];
+  formatearUptime(d.uptimeS, up, sizeof(up));
+  pantalla.setCursor(0, 53);
+  pantalla.print("Uptime: ");
+  pantalla.print(up);
+}
+
+// PÁGINA 3: MEMORIA RAM
+void mostrarPaginaRAM(const EstadoSistema &d) {
+  dibujarEncabezado("MEMORIA", d);
+  pantalla.setTextSize(1);
+
+  uint32_t usado = (d.heapTotal >= d.heapLibre) ? d.heapTotal - d.heapLibre : 0;
+  uint32_t pct = porcentajeHeapUsado(d);
+
+  pantalla.setCursor(0, 13);
+  pantalla.printf("Libre: %lu KB", (unsigned long)(d.heapLibre / 1024));
+
+  pantalla.setCursor(0, 23);
+  pantalla.printf("Uso: %lu KB (%lu%%)", (unsigned long)(usado / 1024), (unsigned long)pct);
+
+  pantalla.setCursor(0, 33);
+  pantalla.printf("Min libre: %lu KB", (unsigned long)(d.heapMinLibre / 1024));
+
+  // Barra de ocupación del heap
+  pantalla.drawRect(0, 44, OLED_ANCHO, 8, SSD1306_WHITE);
+  int16_t ancho = (int16_t)((OLED_ANCHO - 4) * pct / 100);
+  pantalla.fillRect(2, 46, ancho, 4, SSD1306_WHITE);
+
+  pantalla.setCursor(0, 55);
+  pantalla.printf("Total heap: %lu KB", (unsigned long)(d.heapTotal / 1024));
+}
+
+// Redibuja la página actual cada segundo y cambia de página cada 4,5 s.
+// Adafruit_SSD1306 dibuja en un búfer en RAM y lo envía completo con display(),
+// por eso no hay parpadeo aunque se borre el búfer en cada redibujo.
+void actualizarPantalla() {
+  static unsigned long ultimoDibujo = 0;
+  static unsigned long ultimoCambio = 0;
+  if (!pantallaDisponible) return;
+
+  bool cambiarPagina = millis() - ultimoCambio >= DURACION_PAGINAS[paginaActual];  // <<< CAMBIO
+  if (cambiarPagina) {
+    ultimoCambio = millis();
+    paginaActual = (paginaActual + 1) % NUM_PAGINAS;
+  }
+  if (!cambiarPagina && millis() - ultimoDibujo < INTERVALO_PANTALLA) return;
+  ultimoDibujo = millis();
+
+  EstadoSistema d = leerDatos();
+  pantalla.clearDisplay();
+  pantalla.setTextColor(SSD1306_WHITE);
+
+  switch (paginaActual) {
+    case 0:  mostrarPaginaAmbiental(d); break;
+    case 1:  mostrarPaginaCPU(d);       break;
+    default: mostrarPaginaRAM(d);       break;
+  }
+  pantalla.display();
+}
+
+// Se conserva el nombre de la función original: ahora muestra la página de ambiente
+void mostrarEnPantalla() {
+  if (!pantallaDisponible) return;
+  EstadoSistema d = leerDatos();
+  pantalla.clearDisplay();
+  pantalla.setTextColor(SSD1306_WHITE);
+  mostrarPaginaAmbiental(d);
+  pantalla.display();
+}
+
+// =====================================================================================
+// TELEGRAM (tarea FreeRTOS independiente)
+// =====================================================================================
+//
+// Las peticiones HTTPS a Telegram pueden tardar desde décimas de segundo hasta varios
+// segundos (handshake TLS). Para no detener Sinric Pro ni la pantalla, el bot corre en
+// su propia tarea, en el mismo núcleo que loop() y con la misma prioridad: FreeRTOS
+// reparte el tiempo entre ambas cada milisegundo, así loop() sigue ejecutándose.
+// Reglas de concurrencia:
+//   - bot y clienteTelegram solo se usan dentro de esta tarea.
+//   - Sinric Pro y la OLED solo se usan desde loop().
+//   - Los datos compartidos se leen con leerDatos() (mutexDatos).
+//   - El relé solo se cambia con conmutarRele()/fijarLuz() (mutexRele).
+
+WiFiClientSecure clienteTelegram;
+UniversalTelegramBot bot(TELEGRAM_BOT_TOKEN, clienteTelegram);
+bool telegramConfigurado = false;
+
+bool usuarioAutorizado(const String &chatId) {
+  for (size_t i = 0; i < NUM_USUARIOS_AUTORIZADOS; i++) {
+    if (chatId == USUARIOS_AUTORIZADOS[i]) return true;
+  }
+  return false;
+}
+
+void enviarTelegram(const String &chatId, const String &texto) {
+  if (!bot.sendMessage(chatId, texto, "")) {
+    Serial.println("[Telegram] Error al enviar el mensaje");
+  }
+}
+
+String textoEstado(const EstadoSistema &d) {
+  bool rele, luz;
+  leerEstadoRele(rele, luz);
+  char up[20];
+  formatearUptime(d.uptimeS, up, sizeof(up));
+
+  String m;
+  m.reserve(400);
+  m += "ESTADO DEL SISTEMA\n\n";
+  if (d.dhtValido) {
+    m += "Temperatura ambiente: " + String(d.temperatura, 1) + " °C\n";
+    m += "Humedad relativa: " + String(d.humedad, 0) + " %\n";
+  } else {
+    m += "Temperatura ambiente: sin lectura del DHT11\n";
+    m += "Humedad relativa: sin lectura del DHT11\n";
+  }
+  m += "\nRelé: posición " + String(rele ? "NO (activo)" : "NC (reposo)") + "\n";
+  m += "Luz (estimada): " + String(luz ? "ENCENDIDA" : "APAGADA") + "\n";
+  m += "\nWiFi: " + String(d.wifiConectado ? "conectado" : "sin conexión") + "\n";
+  if (d.wifiConectado) {
+    m += "Señal: " + String(d.rssi) + " dBm (" + String(calidadWiFi(d.rssi)) + " %)\n";
+  }
+  m += "Tiempo encendido: " + String(up);
+  return m;
+}
+
+String textoCPU(const EstadoSistema &d) {
+  String m;
+  m.reserve(300);
+  m += "PROCESADOR\n\n";
+  m += "Modelo: " + String(d.modelo) + "\n";
+  m += "Núcleos: " + String(d.nucleos) + "\n";
+  m += "Frecuencia: " + String(d.cpuMHz) + " MHz\n";
+  if (d.usoCpuValido) {
+    m += "Uso estimado: núcleo 0 " + String(d.usoCpu[0], 0) + " %, núcleo 1 " + String(d.usoCpu[1], 0) + " %\n";
+  } else {
+    m += "Uso estimado: no disponible\n";
+  }
+  if (d.tempChipDisponible) m += "Temperatura interna del chip: " + String(d.tempChip, 1) + " °C (aprox.)";
+  else                      m += "Temperatura interna del chip: no disponible en este chip";
+  return m;
+}
+
+String textoRAM(const EstadoSistema &d) {
+  uint32_t usado = (d.heapTotal >= d.heapLibre) ? d.heapTotal - d.heapLibre : 0;
+  String m;
+  m.reserve(300);
+  m += "MEMORIA (heap)\n\n";
+  m += "Total heap: " + String(d.heapTotal / 1024) + " KB\n";
+  m += "Libre: " + String(d.heapLibre / 1024) + " KB\n";
+  m += "Usada: " + String(usado / 1024) + " KB (" + String(porcentajeHeapUsado(d)) + " %)\n";
+  m += "Mínimo libre histórico: " + String(d.heapMinLibre / 1024) + " KB\n";
+  m += "Bloque libre más grande: " + String(d.heapBloqueMax / 1024) + " KB\n";
+  m += "Pila libre tarea Telegram: " + String(d.pilaTelegramLibre) + " bytes";
+  return m;
+}
+
+String textoWiFi(const EstadoSistema &d) {
+  String m;
+  m.reserve(200);
+  m += "WIFI\n\n";
+  m += "Estado: " + String(d.wifiConectado ? "conectado" : "sin conexión") + "\n";
+  m += "Red: " + String(d.ssid) + "\n";
+  m += "IP: " + String(d.ip) + "\n";
+  m += "RSSI: " + String(d.rssi) + " dBm\n";
+  m += "Calidad estimada: " + String(calidadWiFi(d.rssi)) + " %";
+  return m;
+}
+
+String textoAyuda() {
+  return String(
+    "COMANDOS\n\n"
+    "/estado - Ambiente, relé, WiFi y uptime\n"
+    "/cpu - Procesador\n"
+    "/ram - Memoria\n"
+    "/wifi - Conexión inalámbrica\n"
+    "/encender - Encender la luz\n"
+    "/apagar - Apagar la luz\n"
+    "/conmutar - Invertir la luz (si alguien usó el suiche)\n"
+    "/reiniciar - Informe de funcionamiento (no reinicia la placa)\n"
+    "/ayuda - Esta lista");
+}
+
+// Envía el informe pedido por el comando
+void enviarEstadoTelegram(const String &chatId, const String &comando) {
+  EstadoSistema d = leerDatos();
+  if      (comando == "/estado") enviarTelegram(chatId, textoEstado(d));
+  else if (comando == "/cpu")    enviarTelegram(chatId, textoCPU(d));
+  else if (comando == "/ram")    enviarTelegram(chatId, textoRAM(d));
+  else if (comando == "/wifi")   enviarTelegram(chatId, textoWiFi(d));
+  else if (comando == "/reiniciar") {
+    String m;
+    m.reserve(1000);
+    m += "INFORME DE FUNCIONAMIENTO (la placa NO se reinicia)\n\n";
+    m += textoEstado(d) + "\n\n";
+    m += textoCPU(d) + "\n\n";
+    m += textoRAM(d);
+    enviarTelegram(chatId, m);
+  }
+}
+
+void procesarComandoTelegram(const String &chatId, String texto, const String &nombre) {
+  if (!usuarioAutorizado(chatId)) {
+    Serial.printf("[Telegram] Acceso rechazado al chat %s\n", chatId.c_str());
+    enviarTelegram(chatId, "Acceso no autorizado.");
+    return;
+  }
+
+  texto.trim();
+  int arroba = texto.indexOf('@');            // "/estado@MiBot" -> "/estado"
+  if (arroba > 0) texto = texto.substring(0, arroba);
+  int espacio = texto.indexOf(' ');
+  if (espacio > 0) texto = texto.substring(0, espacio);
+  texto.toLowerCase();
+
+  Serial.printf("[Telegram] %s: %s\n", nombre.c_str(), texto.c_str());
+
+  if (texto == "/start") {
+    enviarTelegram(chatId,
+      "Hola " + nombre + ". Soy el sistema domótico de tu habitación (ESP32).\n\n"
+      "Monitoreo la temperatura y la humedad del ambiente con un DHT11, controlo la luz "
+      "con un relé en circuito conmutado y reporto el estado del procesador, la memoria y el WiFi.\n\n" +
+      textoAyuda());
+  }
+  else if (texto == "/ayuda" || texto == "/help") {
+    enviarTelegram(chatId, textoAyuda());
+  }
+  else if (texto == "/estado" || texto == "/cpu" || texto == "/ram" ||
+           texto == "/wifi"   || texto == "/reiniciar") {
+    enviarEstadoTelegram(chatId, texto);
+  }
+  else if (texto == "/encender" || texto == "/apagar") {
+    bool encender = (texto == "/encender");
+    if (fijarLuz(encender)) {
+      syncSinricValor = encender;
+      syncSinricPendiente = true;
+      Serial.printf("Orden de Telegram: %s -> rele conmutado a %s\n",
+                    encender ? "ENCENDER" : "APAGAR", estadoRele ? "NO" : "NC");
+      enviarTelegram(chatId, encender ? "Luz encendida." : "Luz apagada.");
+    } else {
+      enviarTelegram(chatId, String("El sistema ya registra la luz como ") +
+                     (encender ? "ENCENDIDA" : "APAGADA") +
+                     ". Si en la habitación no coincide (alguien usó el suiche), envía /conmutar.");
+    }
+  }
+  else if (texto == "/conmutar") {
+    bool luz = conmutarRele();
+    syncSinricValor = luz;
+    syncSinricPendiente = true;
+    Serial.printf("Orden de Telegram: CONMUTAR -> rele conmutado a %s\n", estadoRele ? "NO" : "NC");
+    enviarTelegram(chatId, String("Relé conmutado. Luz (estimada): ") + (luz ? "ENCENDIDA" : "APAGADA"));
+  }
+  else {
+    enviarTelegram(chatId, "Comando no reconocido. Envía /ayuda para ver la lista.");
+  }
+}
+
+void procesarMensajesTelegram() {
+  int nuevos = bot.getUpdates(bot.last_message_received + 1);
+  while (nuevos > 0) {
+    for (int i = 0; i < nuevos; i++) {
+      procesarComandoTelegram(bot.messages[i].chat_id, bot.messages[i].text, bot.messages[i].from_name);
+    }
+    nuevos = bot.getUpdates(bot.last_message_received + 1);
+  }
+}
+
+// Al arrancar se descartan los mensajes acumulados mientras la placa estaba apagada,
+// para que un "/encender" viejo no se ejecute después de un reinicio.
+void descartarMensajesPendientes() {
+  int nuevos = bot.getUpdates(bot.last_message_received + 1);
+  int descartados = 0;
+  while (nuevos > 0) {
+    descartados += nuevos;
+    nuevos = bot.getUpdates(bot.last_message_received + 1);
+  }
+  if (descartados > 0) Serial.printf("[Telegram] %d mensajes antiguos descartados\n", descartados);
+}
+
+void tareaTelegram(void *parametro) {
+  clienteTelegram.setCACert(TELEGRAM_CERTIFICATE_ROOT);
+  bool iniciado = false;
+
+  for (;;) {
+    if (WiFi.status() == WL_CONNECTED) {
+      if (!iniciado) {
+        descartarMensajesPendientes();
+        enviarTelegram(TELEGRAM_CHAT_ID, "Sistema domótico en línea. Envía /ayuda para ver los comandos.");
+        iniciado = true;
+      }
+      procesarMensajesTelegram();
+    }
+    vTaskDelay(pdMS_TO_TICKS(INTERVALO_TELEGRAM));
+  }
+}
+
+void configurarTelegram() {
+  if (String(TELEGRAM_BOT_TOKEN) == "TELEGRAM_BOT_TOKEN" || String(TELEGRAM_CHAT_ID) == "TELEGRAM_CHAT_ID") {
+    Serial.println("[Telegram] Token o chat ID sin configurar: el bot queda desactivado");
+    return;
+  }
+  BaseType_t ok = xTaskCreatePinnedToCore(tareaTelegram, "Telegram", 12288, nullptr, 1,
+                                          &tareaTelegramHandle, ARDUINO_RUNNING_CORE);
+  telegramConfigurado = (ok == pdPASS);
+  Serial.println(telegramConfigurado ? "[Telegram] Bot iniciado" : "[Telegram] No se pudo crear la tarea");
+}
+
+// =====================================================================================
+// CONEXIÓN WIFI  (sin cambios en la conexión inicial)
+// =====================================================================================
+
+void setupWiFi() {
+
+  Serial.print("Conectando al WiFi");
+
+  WiFi.mode(WIFI_STA);
+  // --- Diagnóstico: lista las redes que ve la ESP32 ---
+  int n = WiFi.scanNetworks();
+  Serial.printf("\nRedes encontradas: %d\n", n);
+  for (int i = 0; i < n; i++) {
+    Serial.printf("  [%s]  senal %d dBm\n", WiFi.SSID(i).c_str(), WiFi.RSSI(i));
+  }
+  WiFi.scanDelete();   // Libera la memoria del escaneo
+
+  WiFi.onEvent([](WiFiEvent_t e, WiFiEventInfo_t info) {
+    Serial.printf("\n[WiFi] Rechazado, codigo de razon: %d\n", info.wifi_sta_disconnected.reason);
+  }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+
+  unsigned long inicio = millis();
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+
+    // Si en 20 segundos no conecta, reinicia y vuelve a intentar
+    if (millis() - inicio > 20000) {
+      Serial.println("\nNo se pudo conectar. Reiniciando...");
+      ESP.restart();
+    }
+  }
+
+  Serial.println();
+  Serial.println("WiFi conectado");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+// =====================================================================================
+// CONFIGURACIÓN SINRIC PRO  (sin cambios)
+// =====================================================================================
+
+void setupSinricPro() {
+
+  SinricProSwitch &mySwitch = SinricPro[SWITCH_ID];
+  mySwitch.onPowerState(onPowerState);
+
+  SinricPro.onConnected([]() {
+    Serial.println("Conectado a SinricPro");
+  });
+
+  SinricPro.onDisconnected([]() {
+    Serial.println("Desconectado de SinricPro");
+  });
+
+  SinricPro.begin(APP_KEY, APP_SECRET);
+}
+
+// =====================================================================================
+// OTA: permite cargar el programa desde el Arduino IDE por WiFi (misma red)   <<< OTA
+// =====================================================================================
+
+void setupOTA() {
+  ArduinoOTA.setHostname(OTA_NOMBRE);
+  ArduinoOTA.setPassword(OTA_CLAVE);
+
+  ArduinoOTA.onStart([]() {
+    // Pausa el bot de Telegram para liberar memoria y red durante la carga
+    if (tareaTelegramHandle) vTaskSuspend(tareaTelegramHandle);
+    Serial.println("[OTA] Recibiendo programa nuevo...");
+    if (pantallaDisponible) {
+      pantalla.clearDisplay();
+      pantalla.setTextSize(1);
+      pantalla.setTextColor(SSD1306_WHITE);
+      pantalla.setCursor(0, 20);
+      pantalla.print("Actualizando por WiFi");
+      pantalla.display();
+    }
+  });
+
+  ArduinoOTA.onProgress([](unsigned int actual, unsigned int total) {
+    static int ultimoPct = -1;
+    int pct = (int)((uint64_t)actual * 100 / total);
+    if (pct == ultimoPct) return;
+    ultimoPct = pct;
+    Serial.printf("[OTA] %d %%\r", pct);
+    if (pantallaDisponible) {
+      pantalla.fillRect(0, 34, OLED_ANCHO, 20, SSD1306_BLACK);
+      pantalla.drawRect(0, 34, OLED_ANCHO, 8, SSD1306_WHITE);
+      pantalla.fillRect(2, 36, (OLED_ANCHO - 4) * pct / 100, 4, SSD1306_WHITE);
+      pantalla.setCursor(0, 46);
+      pantalla.printf("%d %%", pct);
+      pantalla.display();
+    }
+  });
+
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\n[OTA] Carga completa, reiniciando");
+  });
+
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA] Error %u\n", error);
+    if (tareaTelegramHandle) vTaskResume(tareaTelegramHandle);   // Si falla, el sistema sigue normal
+  });
+
+  ArduinoOTA.begin();
+  Serial.printf("[OTA] Listo. Puerto de red: %s (%s)\n", OTA_NOMBRE, WiFi.localIP().toString().c_str());
+}
+
+// =====================================================================================
+// MQTT: publica el estado y recibe órdenes de la Orange Pi   <<< MQTT
+// =====================================================================================
+
+WiFiClient clienteMQTT;
+PubSubClient mqtt(clienteMQTT);
+
+void alRecibirMQTT(char *tema, byte *contenido, unsigned int largo) {
+  String msg;
+  for (unsigned int i = 0; i < largo; i++) msg += (char)contenido[i];
+  msg.trim();
+  msg.toUpperCase();
+
+  if (String(tema) == MQTT_TEMA_LUZ) {
+    if (msg == "ON" || msg == "OFF") {
+      bool encender = (msg == "ON");
+      if (fijarLuz(encender)) { syncSinricValor = encender; syncSinricPendiente = true; }
+    } else if (msg == "TOGGLE") {
+      bool luz = conmutarRele();
+      syncSinricValor = luz;
+      syncSinricPendiente = true;
+    }
+    Serial.printf("[MQTT] Orden de luz: %s\n", msg.c_str());
+  }
+}
+
+void manejarMQTT() {
+  static unsigned long ultimoIntento = 0;
+  static unsigned long ultimoEnvio = 0;
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  // Reconexión no bloqueante: un intento cada 5 s
+  if (!mqtt.connected()) {
+    if (millis() - ultimoIntento < 5000) return;
+    ultimoIntento = millis();
+    // <<< v3 LWT: si el ESP32 desaparece, Mosquitto publica "offline" (QoS 1, retenido)
+    if (mqtt.connect("esp32-habitacion", MQTT_USUARIO, MQTT_CLAVE,
+                     MQTT_TEMA_CONEXION, 1, true, "offline")) {
+      mqtt.publish(MQTT_TEMA_CONEXION, "online", true);   // <<< v3: aviso de conexión (retenido)
+      mqtt.subscribe(MQTT_TEMA_LUZ);
+      Serial.println("[MQTT] Conectado a la Orange Pi");
+    } else {
+      Serial.printf("[MQTT] No conecta (estado %d)\n", mqtt.state());
+      return;
+    }
+  }
+  mqtt.loop();
+
+  // Publicación periódica del estado en formato JSON
+  if (millis() - ultimoEnvio < INTERVALO_MQTT) return;
+  ultimoEnvio = millis();
+
+  EstadoSistema d = leerDatos();
+  bool rele, luz;
+  leerEstadoRele(rele, luz);
+
+  char temp[12], hum[12], cpu0[12], cpu1[12];
+  if (d.dhtValido) { snprintf(temp, sizeof(temp), "%.1f", d.temperatura); snprintf(hum, sizeof(hum), "%.0f", d.humedad); }
+  else             { strcpy(temp, "null"); strcpy(hum, "null"); }
+  if (d.usoCpuValido) { snprintf(cpu0, sizeof(cpu0), "%.0f", d.usoCpu[0]); snprintf(cpu1, sizeof(cpu1), "%.0f", d.usoCpu[1]); }
+  else                { strcpy(cpu0, "null"); strcpy(cpu1, "null"); }
+
+  char json[400];
+  snprintf(json, sizeof(json),
+    "{\"temp\":%s,\"hum\":%s,\"cpu_mhz\":%lu,\"cpu0\":%s,\"cpu1\":%s,"
+    "\"heap_libre\":%lu,\"heap_min\":%lu,\"heap_total\":%lu,\"rssi\":%ld,"
+    "\"luz\":%s,\"uptime\":%lu}",
+    temp, hum, (unsigned long)d.cpuMHz, cpu0, cpu1,
+    (unsigned long)d.heapLibre, (unsigned long)d.heapMinLibre, (unsigned long)d.heapTotal,
+    (long)d.rssi, luz ? "true" : "false", (unsigned long)d.uptimeS);
+
+  mqtt.publish(MQTT_TEMA_ESTADO, json);
+}
+
+// =====================================================================================
+// SETUP
+// =====================================================================================
+
+void setup() {
+
+  Serial.begin(115200);
+
+  mutexDatos = xSemaphoreCreateMutex();
+  mutexRele  = xSemaphoreCreateMutex();
+
+  pinMode(RELAY_PIN, OUTPUT);
+
+  // Mantener el relé apagado al iniciar
+  digitalWrite(RELAY_PIN, RELAY_OFF);
+
+  // Datos fijos del procesador
+  strlcpy(datos.modelo, ESP.getChipModel(), sizeof(datos.modelo));
+  datos.nucleos = ESP.getChipCores();
+  datos.temperatura = NAN;
+  datos.humedad = NAN;
+  strlcpy(datos.ip, "0.0.0.0", sizeof(datos.ip));
+
+  // Ganchos IDLE para estimar el uso de CPU por núcleo
+  ganchosCpuActivos =
+    (esp_register_freertos_idle_hook_for_cpu(ganchoIdleNucleo0, 0) == ESP_OK) &&
+    (esp_register_freertos_idle_hook_for_cpu(ganchoIdleNucleo1, 1) == ESP_OK);
+  if (!ganchosCpuActivos) Serial.println("[CPU] No se pudo registrar la medicion de uso");
+
+  // Sensor y pantalla
+#if DHT_PIN_ALIMENTACION >= 0
+  pinMode(DHT_PIN_ALIMENTACION, OUTPUT);
+  digitalWrite(DHT_PIN_ALIMENTACION, HIGH);
+  delay(1500);                               // Solo en el arranque: estabilización del DHT11
+#endif
+  dht.begin();
+  Wire.begin(21, 22);                        // SDA = G21, SCL = G22
+  Wire.setClock(400000);                     // I2C rápido: la OLED se actualiza en ~25 ms
+  if (!pantalla.begin(SSD1306_SWITCHCAPVCC, OLED_DIR)) {
+    Serial.println("[OLED] No se encontro la pantalla. Revisa SDA/SCL y la direccion 0x3C");
+  } else {
+    pantallaDisponible = true;
+    pantalla.cp437(true);                    // Permite usar el símbolo de grados
+    pantalla.clearDisplay();
+    pantalla.setTextSize(1);
+    pantalla.setTextColor(SSD1306_WHITE);
+    pantalla.setCursor(0, 24);
+    pantalla.print("Conectando WiFi...");
+    pantalla.display();
+  }
+
+  setupWiFi();
+  setupOTA();                // <<< OTA: carga del programa por WiFi
+  mqtt.setServer(MQTT_SERVIDOR, MQTT_PUERTO);   // <<< MQTT
+  mqtt.setCallback(alRecibirMQTT);
+  mqtt.setBufferSize(512);                      // El JSON no cabe en los 256 bytes por defecto
+  setupSinricPro();
+  configurarTelegram();
+
+  Serial.println("Sistema inteligente iniciado");
+}
+
+// =====================================================================================
+// LOOP — planificador cooperativo con millis(); ninguna función bloquea
+// =====================================================================================
+
+void loop() {
+  ArduinoOTA.handle();       // <<< OTA: atiende actualizaciones por WiFi
+  manejarMQTT();             // <<< MQTT: datos hacia la Orange Pi
+  SinricPro.handle();        // Google Home
+  actualizarSensor();        // DHT11 cada 2,5 s
+  actualizarRendimiento();   // CPU y uptime cada 1 s
+  actualizarMemoria();       // Heap cada 2 s
+  actualizarWiFi();          // RSSI y reconexión cada 2 s
+  actualizarPantalla();      // OLED cada 1 s, página cada 4,5 s
+  sincronizarSinric();       // Estado hacia Google Home tras órdenes de Telegram
+
+  // Cede 1 ms al planificador: permite que la tarea de Telegram y la tarea IDLE se
+  // ejecutan (sin esto el núcleo 1 nunca queda libre y el uso de CPU sería siempre 100 %).
+  vTaskDelay(1);
+}

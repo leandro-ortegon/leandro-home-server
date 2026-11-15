@@ -1,0 +1,17 @@
+# /etc/mosquitto/acl  (root:mosquitto 640)  — versión final Etapa 10
+# readwrite = publicar y suscribirse | write = solo publicar | read = solo suscribirse
+
+# Administrador (pruebas y monitorización)
+user leandro
+topic readwrite #
+topic read $SYS/#
+
+# Node-RED: cerebro de la automatización
+user nodered
+topic readwrite domotica/#
+
+# ESP32 de la habitación: solo lo suyo
+user esp32-habitacion
+topic write domotica/habitacion/estado
+topic write domotica/habitacion/conexion
+topic read domotica/habitacion/luz/set

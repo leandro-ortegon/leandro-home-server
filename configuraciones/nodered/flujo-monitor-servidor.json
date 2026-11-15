@@ -1,0 +1,542 @@
+[
+  {
+    "id": "srv_tab",
+    "type": "tab",
+    "label": "Servidor",
+    "disabled": false,
+    "info": "LEANDRO HOME SERVER · Etapa 7: monitorización del servidor"
+  },
+  {
+    "id": "pg_srv",
+    "type": "ui-page",
+    "name": "Servidor",
+    "ui": "base1",
+    "path": "/servidor",
+    "icon": "server",
+    "layout": "grid",
+    "theme": "theme1",
+    "breakpoints": [
+      {
+        "name": "Default",
+        "px": "0",
+        "cols": "3"
+      },
+      {
+        "name": "Tablet",
+        "px": "576",
+        "cols": "6"
+      },
+      {
+        "name": "Small Desktop",
+        "px": "768",
+        "cols": "9"
+      },
+      {
+        "name": "Desktop",
+        "px": "1024",
+        "cols": "12"
+      }
+    ],
+    "order": 2,
+    "className": "",
+    "visible": "true",
+    "disabled": "false"
+  },
+  {
+    "id": "grp_rec",
+    "type": "ui-group",
+    "name": "Recursos",
+    "page": "pg_srv",
+    "width": "9",
+    "height": "1",
+    "order": 1,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "grp_alm",
+    "type": "ui-group",
+    "name": "Almacenamiento",
+    "page": "pg_srv",
+    "width": "6",
+    "height": "1",
+    "order": 2,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "grp_svc",
+    "type": "ui-group",
+    "name": "Servicios",
+    "page": "pg_srv",
+    "width": "6",
+    "height": "1",
+    "order": 3,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default"
+  },
+  {
+    "id": "srv_c1",
+    "type": "comment",
+    "z": "srv_tab",
+    "name": "ETAPA 7 · Estado del servidor cada 30 s → Dashboard /servidor + MQTT domotica/servidor/estado",
+    "info": "Script: /usr/local/bin/estado-servidor.sh\nEn 'Publicar estado' hay que elegir el Server 'Mosquitto local'.",
+    "x": 420,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "srv_inj",
+    "type": "inject",
+    "z": "srv_tab",
+    "name": "Cada 30 s",
+    "props": [],
+    "repeat": "30",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "5",
+    "topic": "",
+    "x": 130,
+    "y": 120,
+    "wires": [
+      [
+        "srv_exec"
+      ]
+    ]
+  },
+  {
+    "id": "srv_exec",
+    "type": "exec",
+    "z": "srv_tab",
+    "command": "/usr/local/bin/estado-servidor.sh",
+    "addpay": "",
+    "append": "",
+    "useSpawn": "false",
+    "timer": "10",
+    "winHide": false,
+    "oldrc": false,
+    "name": "estado-servidor.sh",
+    "x": 330,
+    "y": 120,
+    "wires": [
+      [
+        "srv_json"
+      ],
+      [],
+      []
+    ]
+  },
+  {
+    "id": "srv_json",
+    "type": "json",
+    "z": "srv_tab",
+    "name": "",
+    "property": "payload",
+    "action": "obj",
+    "pretty": false,
+    "x": 510,
+    "y": 120,
+    "wires": [
+      [
+        "srv_fn"
+      ]
+    ]
+  },
+  {
+    "id": "srv_fn",
+    "type": "function",
+    "z": "srv_tab",
+    "name": "Repartir datos",
+    "func": "// Reparte el JSON de estado-servidor.sh a cada widget y a MQTT\nconst e = msg.payload;\nif (typeof e !== 'object' || e === null) return null;\n\nconst servicio = ok => ok ? '🟢 Activo' : '🔴 Detenido';\nconst s = e.uptime || 0;\nconst d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);\nconst uptime = `${d} d ${h} h ${m} min · carga ${e.load}`;\nconst hdd = e.hdd_montado ? `🟢 Montado · ${e.hdd_libre_gb} GB libres` : '🔴 NO montado';\n\nnode.status({ fill: (e.temp > 75 || !e.hdd_montado) ? 'red' : 'green', shape: 'dot',\n              text: `CPU ${e.cpu}% · RAM ${e.ram}% · ${e.temp}°C` });\n\nreturn [\n  { payload: e.cpu },\n  { payload: e.ram },\n  { payload: e.temp },\n  { payload: e.sd_uso },\n  { payload: e.hdd_uso ?? 0 },\n  { payload: hdd },\n  { payload: servicio(e.mosquitto) },\n  { payload: servicio(e.nodered) },\n  { payload: servicio(e.samba) },\n  { payload: uptime },\n  { topic: 'domotica/servidor/estado', payload: e, retain: true }\n];\n",
+    "outputs": 11,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 680,
+    "y": 120,
+    "wires": [
+      [
+        "g_cpu"
+      ],
+      [
+        "g_ram"
+      ],
+      [
+        "g_temp"
+      ],
+      [
+        "g_sd"
+      ],
+      [
+        "g_hdd"
+      ],
+      [
+        "t_hdd"
+      ],
+      [
+        "t_mq"
+      ],
+      [
+        "t_nr"
+      ],
+      [
+        "t_smb"
+      ],
+      [
+        "t_up"
+      ],
+      [
+        "mq_out"
+      ]
+    ]
+  },
+  {
+    "id": "g_cpu",
+    "type": "ui-gauge",
+    "z": "srv_tab",
+    "name": "CPU",
+    "group": "grp_rec",
+    "order": 1,
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "CPU",
+    "units": "%",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#5cd65c"
+      },
+      {
+        "from": "60",
+        "color": "#ffc800"
+      },
+      {
+        "from": "85",
+        "color": "#ea5353"
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 940,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "g_ram",
+    "type": "ui-gauge",
+    "z": "srv_tab",
+    "name": "RAM",
+    "group": "grp_rec",
+    "order": 2,
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "RAM",
+    "units": "%",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#5cd65c"
+      },
+      {
+        "from": "60",
+        "color": "#ffc800"
+      },
+      {
+        "from": "85",
+        "color": "#ea5353"
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 940,
+    "y": 80,
+    "wires": []
+  },
+  {
+    "id": "g_temp",
+    "type": "ui-gauge",
+    "z": "srv_tab",
+    "name": "Temp. CPU",
+    "group": "grp_rec",
+    "order": 3,
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-half",
+    "gstyle": "needle",
+    "title": "Temp. CPU",
+    "units": "°C",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#5cd65c"
+      },
+      {
+        "from": "65",
+        "color": "#ffc800"
+      },
+      {
+        "from": "80",
+        "color": "#ea5353"
+      }
+    ],
+    "min": 20,
+    "max": 90,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 950,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "g_sd",
+    "type": "ui-gauge",
+    "z": "srv_tab",
+    "name": "microSD",
+    "group": "grp_alm",
+    "order": 1,
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-34",
+    "gstyle": "needle",
+    "title": "microSD (sistema)",
+    "units": "%",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#5cd65c"
+      },
+      {
+        "from": "75",
+        "color": "#ffc800"
+      },
+      {
+        "from": "90",
+        "color": "#ea5353"
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 950,
+    "y": 160,
+    "wires": []
+  },
+  {
+    "id": "g_hdd",
+    "type": "ui-gauge",
+    "z": "srv_tab",
+    "name": "HDD",
+    "group": "grp_alm",
+    "order": 2,
+    "width": 3,
+    "height": 3,
+    "gtype": "gauge-34",
+    "gstyle": "needle",
+    "title": "HDD (datos)",
+    "units": "%",
+    "icon": "",
+    "prefix": "",
+    "suffix": "",
+    "segments": [
+      {
+        "from": "0",
+        "color": "#5cd65c"
+      },
+      {
+        "from": "75",
+        "color": "#ffc800"
+      },
+      {
+        "from": "90",
+        "color": "#ea5353"
+      }
+    ],
+    "min": 0,
+    "max": 100,
+    "sizeThickness": 16,
+    "sizeGap": 4,
+    "sizeKeyThickness": 8,
+    "styleRounded": true,
+    "styleGlow": false,
+    "className": "",
+    "x": 940,
+    "y": 200,
+    "wires": []
+  },
+  {
+    "id": "t_hdd",
+    "type": "ui-text",
+    "z": "srv_tab",
+    "group": "grp_alm",
+    "order": 3,
+    "width": 0,
+    "height": 0,
+    "name": "Disco HDD",
+    "label": "Disco HDD",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "x": 950,
+    "y": 240,
+    "wires": []
+  },
+  {
+    "id": "t_mq",
+    "type": "ui-text",
+    "z": "srv_tab",
+    "group": "grp_svc",
+    "order": 1,
+    "width": 0,
+    "height": 0,
+    "name": "Mosquitto",
+    "label": "Mosquitto",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "x": 950,
+    "y": 280,
+    "wires": []
+  },
+  {
+    "id": "t_nr",
+    "type": "ui-text",
+    "z": "srv_tab",
+    "group": "grp_svc",
+    "order": 2,
+    "width": 0,
+    "height": 0,
+    "name": "Node-RED",
+    "label": "Node-RED",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "x": 950,
+    "y": 320,
+    "wires": []
+  },
+  {
+    "id": "t_smb",
+    "type": "ui-text",
+    "z": "srv_tab",
+    "group": "grp_svc",
+    "order": 3,
+    "width": 0,
+    "height": 0,
+    "name": "Samba",
+    "label": "Samba",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "x": 940,
+    "y": 360,
+    "wires": []
+  },
+  {
+    "id": "t_up",
+    "type": "ui-text",
+    "z": "srv_tab",
+    "group": "grp_svc",
+    "order": 4,
+    "width": 0,
+    "height": 0,
+    "name": "Encendido",
+    "label": "Encendido",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "x": 950,
+    "y": 400,
+    "wires": []
+  },
+  {
+    "id": "mq_out",
+    "type": "mqtt out",
+    "z": "srv_tab",
+    "name": "Publicar estado",
+    "topic": "",
+    "qos": "0",
+    "retain": "",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "",
+    "x": 960,
+    "y": 440,
+    "wires": []
+  }
+]

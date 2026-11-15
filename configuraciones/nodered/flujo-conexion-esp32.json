@@ -1,0 +1,71 @@
+[
+  {
+    "id": "lwt_c1",
+    "type": "comment",
+    "name": "ETAPA 10 · Estado de conexión del ESP32 (LWT)",
+    "info": "Elegir el Server 'Mosquitto local' en el nodo 'Conexión ESP32'.",
+    "x": 250,
+    "y": 760,
+    "wires": []
+  },
+  {
+    "id": "lwt_in",
+    "type": "mqtt in",
+    "name": "Conexión ESP32",
+    "topic": "domotica/habitacion/conexion",
+    "qos": "1",
+    "datatype": "utf8",
+    "broker": "",
+    "nl": false,
+    "rap": true,
+    "rh": 0,
+    "inputs": 0,
+    "x": 200,
+    "y": 820,
+    "wires": [
+      [
+        "lwt_fn"
+      ]
+    ]
+  },
+  {
+    "id": "lwt_fn",
+    "type": "function",
+    "name": "Indicador + evento",
+    "func": "// domotica/habitacion/conexion → indicador + evento en SQLite\nconst estado = String(msg.payload).trim().toLowerCase();\nconst online = estado === 'online';\n\nnode.status({ fill: online ? 'green' : 'red', shape: 'dot', text: estado + ' · ' + new Date().toLocaleTimeString() });\n\n// Registrar el cambio en la tabla eventos (solo si cambia, ignora el retenido repetido)\nif (context.get('ultimo') !== estado) {\n  context.set('ultimo', estado);\n  try {\n    const { DatabaseSync } = global.get('sqlite');\n    const db = new DatabaseSync('/srv/servidor/bases_datos/domotica.db');\n    db.exec('PRAGMA busy_timeout=5000;');\n    db.prepare('INSERT INTO eventos (nivel, origen, mensaje) VALUES (?, ?, ?)')\n      .run(online ? 'info' : 'warning', 'esp32-habitacion', online ? 'ESP32 en línea' : 'ESP32 desconectado (LWT)');\n    db.close();\n  } catch (e) {\n    node.error('SQLite: ' + e.message);\n  }\n}\n\nmsg.payload = online ? '🟢 En línea' : '🔴 Desconectado';\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 420,
+    "y": 820,
+    "wires": [
+      [
+        "lwt_txt"
+      ]
+    ]
+  },
+  {
+    "id": "lwt_txt",
+    "type": "ui-text",
+    "group": "g3",
+    "order": 0,
+    "width": 0,
+    "height": 0,
+    "name": "ESP32 conexión",
+    "label": "ESP32",
+    "format": "{{msg.payload}}",
+    "layout": "row-spread",
+    "style": false,
+    "font": "",
+    "fontSize": 16,
+    "color": "#717171",
+    "wrapText": false,
+    "className": "",
+    "x": 640,
+    "y": 820,
+    "wires": []
+  }
+]

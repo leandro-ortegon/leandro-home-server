@@ -1,0 +1,79 @@
+[
+  {
+    "id": "lhs_c1",
+    "type": "comment",
+    "name": "ETAPA 6 · Historial en SQLite (/srv/servidor/bases_datos/domotica.db)",
+    "info": "Conectar la salida del nodo 'Estado ESP32' a 'Guardar historial'.\nGuarda el promedio cada 60 s, los cambios del relé y los eventos de desconexión.",
+    "x": 330,
+    "y": 560,
+    "wires": []
+  },
+  {
+    "id": "lhs_f1",
+    "type": "function",
+    "name": "Guardar historial",
+    "func": "// Recibe el JSON de domotica/habitacion/estado (cada 10 s)\nconst p = msg.payload;\nif (typeof p !== 'object' || p === null) return null;\n\nconst num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;\n\nconst m = context.get('muestras') || [];\nm.push({\n  temp: num(p.temp),\n  hum: num(p.hum),\n  rssi: num(p.rssi),\n  heap_libre: num(p.heap_libre),\n  uptime: num(p.uptime)\n});\ncontext.set('muestras', m);\n\n// Registrar el relé solo cuando cambia\nif (typeof p.luz === 'boolean') {\n  const anterior = context.get('luz');\n  if (anterior !== p.luz) {\n    context.set('luz', p.luz);\n    try {\n      context.get('st').rele.run('esp32-habitacion', 'luz', p.luz ? 1 : 0, anterior === undefined ? 'inicio' : 'esp32');\n    } catch (e) {\n      node.error('SQLite: ' + e.message);\n    }\n  }\n}\nreturn null;\n",
+    "outputs": 0,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "// LEANDRO HOME SERVER - Etapa 6: abre la BD una sola vez\nconst { DatabaseSync } = global.get('sqlite');\nconst db = new DatabaseSync('/srv/servidor/bases_datos/domotica.db');\ndb.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;');\n\nconst DISP = 'esp32-habitacion';\nconst st = {\n  lectura:  db.prepare('INSERT INTO lecturas (dispositivo, temperatura, humedad, rssi, heap_libre, uptime) VALUES (?, ?, ?, ?, ?, ?)'),\n  contacto: db.prepare(\"UPDATE dispositivos SET ultimo_contacto = datetime('now','localtime') WHERE id = ?\"),\n  rele:     db.prepare('INSERT INTO estados_rele (dispositivo, rele, estado, origen) VALUES (?, ?, ?, ?)'),\n  evento:   db.prepare('INSERT INTO eventos (nivel, origen, mensaje) VALUES (?, ?, ?)')\n};\n\nconst promedio = (m, k) => {\n  const v = m.map(x => x[k]).filter(Number.isFinite);\n  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;\n};\nconst r1 = x => x === null ? null : Math.round(x * 10) / 10;\n\n// Cada 60 s guarda el promedio de las muestras recibidas\nconst guardar = () => {\n  try {\n    const m = context.get('muestras') || [];\n    context.set('muestras', []);\n    if (m.length === 0) {\n      if (context.get('online')) {\n        context.set('online', false);\n        st.evento.run('warning', DISP, 'Sin datos durante 1 minuto');\n      }\n      node.status({ fill: 'red', shape: 'ring', text: 'sin datos ' + new Date().toLocaleTimeString() });\n      return;\n    }\n    if (!context.get('online')) {\n      context.set('online', true);\n      st.evento.run('info', DISP, 'Vuelve a enviar datos');\n    }\n    const ult = m[m.length - 1];\n    const t = r1(promedio(m, 'temp'));\n    const h = r1(promedio(m, 'hum'));\n    const r = promedio(m, 'rssi');\n    st.lectura.run(DISP, t, h, r === null ? null : Math.round(r), ult.heap_libre, ult.uptime);\n    st.contacto.run(DISP);\n    node.status({ fill: 'green', shape: 'dot', text: `${t}°C ${h}% · ${m.length} muestras · ${new Date().toLocaleTimeString()}` });\n  } catch (e) {\n    node.error('SQLite: ' + e.message);\n  }\n};\n\ncontext.set('db', db);\ncontext.set('st', st);\ncontext.set('muestras', []);\ncontext.set('online', true);\ncontext.set('timer', setInterval(guardar, 60000));\nst.evento.run('info', 'nodered', 'Registro de historial iniciado');\nnode.status({ fill: 'blue', shape: 'ring', text: 'BD abierta, esperando datos' });\n",
+    "finalize": "clearInterval(context.get('timer'));\ntry { context.get('st').evento.run('info', 'nodered', 'Registro de historial detenido'); } catch (e) {}\ntry { context.get('db').close(); } catch (e) {}\n",
+    "libs": [],
+    "x": 300,
+    "y": 620,
+    "wires": []
+  },
+  {
+    "id": "lhs_i1",
+    "type": "inject",
+    "name": "Consultar BD",
+    "props": [],
+    "repeat": "",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 290,
+    "y": 680,
+    "wires": [
+      [
+        "lhs_f2"
+      ]
+    ]
+  },
+  {
+    "id": "lhs_f2",
+    "type": "function",
+    "name": "Últimos registros",
+    "func": "// Muestra en Debug lo último guardado (solo lectura)\nconst { DatabaseSync } = global.get('sqlite');\nconst db = new DatabaseSync('/srv/servidor/bases_datos/domotica.db', { readOnly: true });\ntry {\n  msg.payload = {\n    lecturas: db.prepare('SELECT ts, temperatura, humedad, rssi FROM lecturas ORDER BY id DESC LIMIT 5').all(),\n    reles:    db.prepare('SELECT ts, rele, estado, origen FROM estados_rele ORDER BY id DESC LIMIT 5').all(),\n    eventos:  db.prepare('SELECT ts, nivel, origen, mensaje FROM eventos ORDER BY id DESC LIMIT 5').all()\n  };\n} finally {\n  db.close();\n}\nreturn msg;\n",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 490,
+    "y": 680,
+    "wires": [
+      [
+        "lhs_d1"
+      ]
+    ]
+  },
+  {
+    "id": "lhs_d1",
+    "type": "debug",
+    "name": "Historial",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 680,
+    "y": 680,
+    "wires": []
+  }
+]

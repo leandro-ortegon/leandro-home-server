@@ -1,0 +1,11 @@
+# /etc/systemd/system/backup-servidor.timer
+[Unit]
+Description=Backup diario a las 03:15
+
+[Timer]
+OnCalendar=*-*-* 03:15
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

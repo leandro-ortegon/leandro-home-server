@@ -1,0 +1,6 @@
+# Nunca subir credenciales ni copias de seguridad reales
+*.key
+*.pem
+secretos*
+backups/*
+!backups/.gitkeep

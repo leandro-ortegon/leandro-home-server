@@ -1,0 +1,3044 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LEANDRO HOME SERVER · Documentación</title>
+<style>
+:root{--bg:#f7f7f5;--fg:#1d1d1b;--mut:#5f5e5a;--card:#fff;--line:#e3e2dd;--acc:#2f6f4f;--code:#f0efeb}
+@media (prefers-color-scheme:dark){:root{--bg:#151614;--fg:#e8e6e0;--mut:#a3a19a;--card:#1d1e1c;--line:#2e2f2c;--acc:#7cc39b;--code:#262724}}
+*{box-sizing:border-box} body{margin:0;font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--fg)}
+nav{position:fixed;top:0;left:0;bottom:0;width:250px;overflow:auto;padding:18px 12px;border-right:1px solid var(--line);background:var(--card)}
+nav .t{font-weight:700;font-size:15px;margin:0 8px 2px} nav .s{font-size:12px;color:var(--mut);margin:0 8px 14px}
+nav a{display:block;padding:6px 8px;border-radius:6px;color:var(--fg);text-decoration:none;font-size:14px} nav a:hover{background:var(--code)}
+#buscar{width:100%;padding:7px 9px;margin:0 0 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+main{margin-left:250px;padding:28px 40px 80px;max-width:1050px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 28px 22px;margin-bottom:22px}
+h1{font-size:24px;border-bottom:1px solid var(--line);padding-bottom:8px} h2{font-size:19px;margin-top:26px} h3{font-size:16px}
+a{color:var(--acc)} table{border-collapse:collapse;width:100%;margin:10px 0;font-size:14px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top} th{background:var(--code)}
+code{background:var(--code);padding:1px 5px;border-radius:4px;font:13px/1.5 Consolas,"Cascadia Mono",monospace}
+pre{background:var(--code);padding:12px 14px;border-radius:8px;overflow-x:auto;position:relative} pre code{padding:0;background:none}
+.copiar{position:absolute;top:6px;right:6px;font-size:12px;padding:3px 8px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--fg);cursor:pointer}
+blockquote{margin:10px 0;padding:6px 14px;border-left:4px solid var(--acc);background:var(--code);border-radius:4px}
+details{margin:8px 0} summary{cursor:pointer}
+@media (max-width:800px){nav{position:static;width:auto;border-right:0} main{margin:0;padding:14px} section{padding:6px 14px 16px}}
+@media print{nav,.copiar{display:none} main{margin:0} section{break-inside:avoid-page;border:0}}
+</style></head><body>
+<nav><div class="t">LEANDRO HOME SERVER</div><div class="s">Personal Home Infrastructure &amp; IoT Server</div><input id="buscar" placeholder="Buscar en la documentación..." oninput="filtrar(this.value)"><a href="#inicio">🏠 Inicio</a><a href="#solucion-problemas">🆘 Solución de problemas</a><a href="#taildrop">📲 Enviar archivos (Taildrop)</a><a href="#arquitectura">Arquitectura</a><a href="#hardware">Hardware</a><a href="#red">Red</a><a href="#almacenamiento">Almacenamiento (HDD)</a><a href="#samba">Samba (archivos)</a><a href="#mqtt">MQTT (Mosquitto)</a><a href="#nodered">Node-RED</a><a href="#base-datos">Base de datos</a><a href="#monitorizacion">Monitorización</a><a href="#acceso-remoto">Acceso remoto y firewall</a><a href="#seguridad">Seguridad</a><a href="#backups">Copias de seguridad</a><a href="#esp32">ESP32</a><a href="#mantenimiento">Mantenimiento y bitácora</a><a href="#archivos">📄 Archivos y scripts</a></nav><main><section id="inicio"><h1>LEANDRO HOME SERVER</h1>
+<p><strong>Personal Home Infrastructure &amp; IoT Server</strong></p>
+<p>Servidor doméstico 24/7 basado en una Orange Pi PC Plus V1.1 que centraliza la domótica (ESP32 + MQTT), el almacenamiento en red, la monitorización y las copias de seguridad. Se administra de forma remota desde un ASUS Vivobook 16 con Windows 11.</p>
+<blockquote>
+<p>Estado del proyecto: <strong>✅ PROYECTO COMPLETADO: Etapas 1–11 verificadas el 2026-11-13</strong>. Última actualización: 2026-11-13.</p>
+</blockquote>
+<hr />
+<h2>1. Hardware</h2>
+<table>
+<thead>
+<tr>
+<th>Componente</th>
+<th>Detalle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Placa</td>
+<td>Orange Pi PC Plus V1.1 (Allwinner H3, 4× Cortex-A7, armv7l, 32 bits)</td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>1 GB DDR3 (991 MiB visibles) + 496 MiB de swap zram</td>
+</tr>
+<tr>
+<td>Sistema</td>
+<td>microSD de 32 GB (<code>mmcblk0</code>, ext4)</td>
+</tr>
+<tr>
+<td>eMMC</td>
+<td>8 GB (<code>mmcblk2</code>): contiene la imagen original de fábrica (sin uso)</td>
+</tr>
+<tr>
+<td>HDD</td>
+<td>1 TB ST1000LM024 (2,5") por USB-SATA JMicron JM20329 → ext4 en <code>/srv/servidor</code></td>
+</tr>
+<tr>
+<td>Red</td>
+<td>WiFi (<code>wlan1</code>, activa), Ethernet 100 Mbps (<code>end0</code>, inactiva)</td>
+</tr>
+</tbody>
+</table>
+<p>Más detalles en <a href="#hardware">docs/hardware.md</a>.</p>
+<h2>2. Software</h2>
+<table>
+<thead>
+<tr>
+<th>Software</th>
+<th>Versión</th>
+<th>Estado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Armbian community (Debian 13 trixie)</td>
+<td>26.11.0-trunk.120 (nightly)</td>
+<td>Funcionando</td>
+</tr>
+<tr>
+<td>Kernel</td>
+<td>6.18.60-current-sunxi</td>
+<td>Funcionando</td>
+</tr>
+<tr>
+<td>Mosquitto</td>
+<td>2.0.21</td>
+<td>Activo, usuarios por cliente + ACL</td>
+</tr>
+<tr>
+<td>Node-RED</td>
+<td>5.0.9 (Node.js v22.15.0)</td>
+<td>Activo; editor con contraseña, credenciales cifradas; dashboard abierto en LAN/Tailscale</td>
+</tr>
+<tr>
+<td>Node-RED Dashboard 2.0</td>
+<td>1.36.1</td>
+<td>Activo en <code>/dashboard</code></td>
+</tr>
+<tr>
+<td>log2ram</td>
+<td>—</td>
+<td>Activo (<code>/var/log</code> en RAM, 50 MB)</td>
+</tr>
+<tr>
+<td>Samba</td>
+<td>4.22.11</td>
+<td>Activo, SMB3, sin invitados</td>
+</tr>
+<tr>
+<td>Tailscale</td>
+<td>1.104.7</td>
+<td><code>leandro-home-server</code> · 100.76.238.119</td>
+</tr>
+<tr>
+<td>UFW</td>
+<td>Debian</td>
+<td>Activo: LAN + Tailscale</td>
+</tr>
+<tr>
+<td>Taildrop</td>
+<td>servicio <code>taildrop-recibir</code></td>
+<td>Archivos del celular/ASUS → <code>Z:\Taildrop</code></td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>3.49.1 (node:sqlite) / CLI 3.46.1</td>
+<td>Historial en <code>/srv/servidor/bases_datos/domotica.db</code></td>
+</tr>
+</tbody>
+</table>
+<h2>3. Arquitectura</h2>
+<pre><code>ESP32 + DHT22 + OLED + Relés
+        │  WiFi / MQTT (1883)
+        ▼
+┌──────────────── ORANGE PI PC PLUS ────────────────┐
+│  Mosquitto ──► Node-RED ──► Base de datos (HDD)    │
+│                   │                                │
+│                   └──► Dashboard 2.0 (panel web)   │
+│  Samba (NAS)   Tailscale (VPN)   Backups (HDD)     │
+└───────────────────────────────────────────────────┘
+        ▲
+        │ SSH / Navegador / Explorador de archivos
+   ASUS Vivobook 16 · Celular
+</code></pre>
+<p>Ver <a href="#arquitectura">docs/arquitectura.md</a>.</p>
+<h2>4. Direcciones de acceso (LAN)</h2>
+<table>
+<thead>
+<tr>
+<th>Servicio</th>
+<th>Dirección</th>
+<th>Notas</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SSH</td>
+<td><code>ssh leandro@192.168.1.9</code></td>
+<td>Llave; contraseña solo como emergencia en la LAN</td>
+</tr>
+<tr>
+<td>Node-RED (editor)</td>
+<td>http://192.168.1.9:1880</td>
+<td>Requiere usuario</td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td>http://192.168.1.9:1880/dashboard</td>
+<td>Sin contraseña (solo LAN/Tailscale)</td>
+</tr>
+<tr>
+<td>Panel del servidor</td>
+<td>http://192.168.1.9:1880/dashboard/servidor</td>
+<td>CPU, RAM, temperatura, discos, servicios</td>
+</tr>
+<tr>
+<td>MQTT</td>
+<td><code>192.168.1.9:1883</code></td>
+<td>Requiere usuario/contraseña</td>
+</tr>
+<tr>
+<td>Samba</td>
+<td><code>\\192.168.1.9\archivos</code> · <code>compartido</code> · <code>backups</code></td>
+<td>Unidad Z: = archivos</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>⚠️ La IP la asigna el router por DHCP. Conviene reservarla en el router.</p>
+</blockquote>
+<h3>Fuera de casa (Tailscale)</h3>
+<table>
+<thead>
+<tr>
+<th>Servicio</th>
+<th>Dirección</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SSH</td>
+<td><code>ssh leandro@leandro-home-server</code></td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td>http://leandro-home-server:1880/dashboard</td>
+</tr>
+<tr>
+<td>Samba</td>
+<td><code>\\leandro-home-server\archivos</code></td>
+</tr>
+<tr>
+<td>Enviar archivos</td>
+<td>Compartir → Tailscale → leandro-home-server (llegan a <code>Z:\Taildrop</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2>5. Plan de etapas</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Etapa</th>
+<th>Estado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Diagnóstico del servidor</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Configuración permanente del HDD</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>3</td>
+<td>NAS con Samba</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Seguridad MQTT</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Node-RED + MQTT</td>
+<td>✅ Completada (seguridad e integración)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Base de datos (SQLite)</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Dashboard de monitorización</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Acceso remoto (Tailscale) + firewall + SSH</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Copias de seguridad</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Integración de ESP32</td>
+<td>✅ Completada</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Pruebas y documentación final</td>
+<td>✅ Completada</td>
+</tr>
+</tbody>
+</table>
+<h2>6. Documentación</h2>
+<ul>
+<li>🆘 <a href="#solucion-problemas">docs/solucion-problemas.md</a> ← <strong>empieza aquí si algo falla</strong></li>
+<li><a href="#hardware">docs/hardware.md</a></li>
+<li><a href="#arquitectura">docs/arquitectura.md</a></li>
+<li><a href="#red">docs/red.md</a></li>
+<li><a href="#almacenamiento">docs/almacenamiento.md</a></li>
+<li><a href="#samba">docs/samba.md</a></li>
+<li><a href="#mqtt">docs/mqtt.md</a></li>
+<li><a href="#nodered">docs/nodered.md</a></li>
+<li><a href="#base-datos">docs/base-datos.md</a></li>
+<li><a href="#monitorizacion">docs/monitorizacion.md</a></li>
+<li><a href="#acceso-remoto">docs/acceso-remoto.md</a></li>
+<li><a href="#backups">docs/backups.md</a></li>
+<li><a href="#esp32">docs/esp32.md</a></li>
+<li><a href="#taildrop">docs/taildrop.md</a></li>
+<li><a href="#seguridad">docs/seguridad.md</a></li>
+<li><a href="#mantenimiento">docs/mantenimiento.md</a></li>
+<li><a href="#archivos">scripts/diagnostico_etapa1.sh</a></li>
+<li><a href="#archivos">scripts/estado-servidor.sh</a></li>
+<li><a href="#archivos">scripts/backup-servidor.sh</a></li>
+<li><a href="#archivos">scripts/verificacion-final.sh</a></li>
+</ul>
+<h2>7. Verificación final (2026-11-13 19:07)</h2>
+<table>
+<thead>
+<tr>
+<th>Área</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Servicios (ssh, mosquitto, nodered, smbd, tailscaled, ufw, backup timer)</td>
+<td>✅ Activos</td>
+</tr>
+<tr>
+<td>HDD <code>/srv/servidor</code></td>
+<td>✅ Montado, 907 GB libres</td>
+</tr>
+<tr>
+<td>Recursos en reposo</td>
+<td>✅ 798 MB de RAM disponibles · 46–50 °C · carga 0</td>
+</tr>
+<tr>
+<td>Tailscale</td>
+<td>✅ Servidor, ASUS (conexión directa) y celular A72</td>
+</tr>
+<tr>
+<td>Editor Node-RED</td>
+<td>✅ 401 sin sesión</td>
+</tr>
+<tr>
+<td>MQTT</td>
+<td>✅ Usuarios leandro, nodered y esp32-habitacion · ESP32 <code>online</code></td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>✅ 190 lecturas, 11 eventos, 6 cambios de relé</td>
+</tr>
+<tr>
+<td>Backups</td>
+<td>✅ Primera copia OK · próxima a las 03:15</td>
+</tr>
+<tr>
+<td>SSH</td>
+<td>✅ root no, contraseña solo en la LAN</td>
+</tr>
+<tr>
+<td>Kernel/u-boot</td>
+<td>✅ Congelados</td>
+</tr>
+</tbody>
+</table>
+<p>Comando de auditoría completo: <a href="#archivos"><code>scripts/verificacion-final.sh</code></a>.</p>
+<h2>8. Pendientes recomendados</h2>
+<ol>
+<li><strong>Reservar la IP 192.168.1.9</strong> para la Orange Pi en el router (reserva DHCP por MAC); el ESP32 la usa fija.</li>
+<li><strong>Rotar credenciales</strong> compartidas en texto: token de Telegram (@BotFather <code>/revoke</code>), credenciales de Sinric Pro y <code>OTA_CLAVE</code>.</li>
+<li><strong>Regla 3-2-1:</strong> copiar periódicamente <code>\\leandro-home-server\backups</code> fuera del servidor.</li>
+<li><strong>Sensor:</strong> valorar el cambio de DHT11 a DHT22 (más preciso en humedad).</li>
+<li>Opcional: contraseña en el dashboard (<code>httpNodeAuth</code>) si se comparte el WiFi con más personas.</li>
+<li>Opcional: desinstalar <code>node-red-node-pi-gpio</code> (solo Raspberry Pi).</li>
+<li>Guardar fuera del servidor: la <code>credentialSecret</code> de Node-RED y la llave SSH <code>id_ed25519</code> del ASUS.</li>
+</ol>
+<h2>9. Reglas del proyecto</h2>
+<ol>
+<li>No reinstalar Armbian, Mosquitto ni Node-RED.</li>
+<li>No formatear el HDD ni tocar particiones sin autorización explícita.</li>
+<li>Respaldar toda configuración antes de modificarla (<code>archivo.bak-AAAAMMDD</code>).</li>
+<li>No avanzar de etapa sin verificar la anterior.</li>
+<li>Usar solo software compatible con armv7l (32 bits) y 1 GB de RAM.</li>
+</ol></section><section id="solucion-problemas"><h1>Solución de problemas (guía rápida)</h1>
+<blockquote>
+<p>Lee primero la sección del síntoma que tienes. Todos los comandos se ejecutan <strong>en la Orange Pi</strong> por SSH, salvo los marcados como <em>PowerShell</em>.</p>
+</blockquote>
+<h2>Datos clave a mano</h2>
+<table>
+<thead>
+<tr>
+<th>Dato</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IP en casa</td>
+<td>192.168.1.9</td>
+</tr>
+<tr>
+<td>Nombre en Tailscale</td>
+<td><code>leandro-home-server</code> (100.76.238.119)</td>
+</tr>
+<tr>
+<td>Usuario Linux</td>
+<td><code>leandro</code></td>
+</tr>
+<tr>
+<td>HDD</td>
+<td><code>/srv/servidor</code> (UUID <code>39ca6a1f-0cc4-437a-ac86-573b770455a5</code>)</td>
+</tr>
+<tr>
+<td>Editor Node-RED</td>
+<td>http://192.168.1.9:1880</td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td>http://192.168.1.9:1880/dashboard</td>
+</tr>
+<tr>
+<td>Archivos</td>
+<td><code>\\192.168.1.9\archivos</code> (unidad Z:)</td>
+</tr>
+</tbody>
+</table>
+<h2>0. Revisión general (lo primero que hay que hacer)</h2>
+<pre><code class="language-bash">bash verificacion-final.sh        # ver scripts/verificacion-final.sh
+# o rápido:
+systemctl --failed --no-pager
+systemctl is-active ssh mosquitto nodered smbd tailscaled ufw taildrop-recibir
+</code></pre>
+<hr />
+<h2>1. No puedo entrar por SSH</h2>
+<table>
+<thead>
+<tr>
+<th>Desde</th>
+<th>Qué probar</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Casa</td>
+<td><em>PowerShell</em>: <code>ssh leandro@192.168.1.9</code>. Desde la LAN se acepta la contraseña de emergencia: <code>ssh -o PubkeyAuthentication=no leandro@192.168.1.9</code></td>
+</tr>
+<tr>
+<td>Fuera de casa</td>
+<td>¿Tailscale está <strong>Connected</strong> en el ASUS? Luego <code>ssh leandro@leandro-home-server</code> (solo con llave)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>"Connection timed out"</strong>: la Orange Pi está apagada, no tiene WiFi o cambió de IP. Mira en el router qué IP tiene <code>orangepipcplus</code>.</li>
+<li><strong>"Permission denied (publickey)" desde fuera</strong>: el ASUS perdió la llave <code>C:\Users\Asus\.ssh\id_ed25519</code>. Entra desde casa con contraseña y vuelve a copiar la llave:
+  <em>PowerShell</em>: <code>type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh leandro@192.168.1.9 "cat &gt;&gt; ~/.ssh/authorized_keys"</code></li>
+<li><strong>Si cambiaste la configuración SSH y quedaste fuera</strong>: conecta monitor y teclado a la Orange Pi y ejecuta:
+  <code>sudo mv /etc/ssh/sshd_config.d/00-leandro-hardening.conf /etc/ssh/00-leandro-hardening.conf.desactivado &amp;&amp; sudo systemctl reload ssh</code></li>
+</ul>
+<h2>2. El firewall me bloqueó algo</h2>
+<pre><code class="language-bash">sudo ufw status verbose        # ver reglas
+sudo ufw disable               # emergencia: apaga el firewall
+sudo ufw enable                # volver a activarlo
+</code></pre>
+<p>Reglas: Tailscale todo; LAN 192.168.1.0/24 → 22, 1880, 1883, 445.</p>
+<h2>3. El HDD no aparece / backups o base de datos fallan</h2>
+<pre><code class="language-bash">findmnt /srv/servidor                    # ¿montado?
+lsblk -f                                 # ¿aparece sda1 con UUID 39ca6a1f...?
+sudo dmesg | grep -iE &quot;sd[a-z]|usb|I/O error&quot; | tail -20
+sudo mount -a                            # intentar montar según fstab
+</code></pre>
+<ul>
+<li>Si <code>lsblk</code> no muestra <code>sda</code>: revisa el cable USB y la alimentación del disco.</li>
+<li>Gracias a la opción <code>nofail</code>, el sistema arranca aunque el disco falle; los servicios que lo usan (backups, SQLite) darán error hasta que vuelva.</li>
+<li>Respaldo del fstab original: <code>/etc/fstab.bak-20261113</code>.</li>
+</ul>
+<h2>4. El Dashboard no muestra datos de la habitación</h2>
+<ol>
+<li>¿El ESP32 está en línea? En el dashboard (grupo <em>Sistema ESP32</em>) o:
+   <code>bash
+    mosquitto_sub -h localhost -u leandro -P '****' -t 'domotica/habitacion/#' -v</code>
+   - <code>conexion offline</code> → el ESP32 está apagado o sin WiFi. Revisa su pantalla OLED (icono WiFi).
+   - Sin mensajes de <code>estado</code> pero <code>online</code> → revisa el monitor serie del ESP32.</li>
+<li>¿Mosquitto rechaza al ESP32?
+   <code>bash
+   sudo tail -30 /var/log/mosquitto/mosquitto.log | grep -iE "esp32|denied|not authorised"</code></li>
+<li>¿Cambió la IP de la Orange Pi? El ESP32 tiene <code>MQTT_SERVIDOR "192.168.1.9"</code> fijo → reserva la IP en el router.</li>
+</ol>
+<h2>5. Node-RED no abre</h2>
+<pre><code class="language-bash">systemctl status nodered --no-pager
+journalctl -u nodered -n 50 --no-pager
+sudo systemctl restart nodered          # tarda unos 40 s en arrancar
+node -e 'require(process.env.HOME+&quot;/.node-red/settings.js&quot;)' &amp;&amp; echo &quot;settings.js correcto&quot;
+</code></pre>
+<ul>
+<li>Si <code>settings.js</code> tiene un error de sintaxis, restaura un respaldo: <code>settings.js.bak-20261113</code>, <code>.bak-dashboard</code> o <code>.bak-sqlite</code> en <code>~/.node-red/</code>.</li>
+<li>Si se pierden los flujos: restaura desde backups (sección 9). Hace falta la <code>credentialSecret</code> guardada aparte.</li>
+</ul>
+<h2>6. MQTT no funciona</h2>
+<pre><code class="language-bash">systemctl status mosquitto --no-pager
+sudo tail -30 /var/log/mosquitto/mosquitto.log
+sudo ls -l /etc/mosquitto/passwd /etc/mosquitto/acl   # deben ser root mosquitto -rw-r-----
+</code></pre>
+<ul>
+<li>Si Mosquitto no arranca tras editar la configuración, restaura <code>/etc/mosquitto/conf.d/domotica.conf.bak-20261113</code> o <code>/etc/mosquitto/acl.bak-etapa10</code>.</li>
+<li>Cambiar una contraseña (NUNCA usar <code>-c</code>): <code>sudo mosquitto_passwd /etc/mosquitto/passwd &lt;usuario&gt; &amp;&amp; sudo systemctl reload mosquitto</code></li>
+</ul>
+<h2>7. No veo mis archivos (Samba / unidad Z:)</h2>
+<pre><code class="language-bash">systemctl status smbd --no-pager
+testparm -s
+sudo smbstatus
+</code></pre>
+<ul>
+<li>Desde fuera de casa usa <code>\\leandro-home-server\archivos</code> con Tailscale activo.</li>
+<li>Si olvidaste la contraseña de Samba: <code>sudo smbpasswd leandro</code>.</li>
+</ul>
+<h2>8. Tailscale no conecta</h2>
+<pre><code class="language-bash">tailscale status
+sudo systemctl restart tailscaled
+</code></pre>
+<ul>
+<li>Panel: https://login.tailscale.com/admin/machines (cuenta leandro-ortegon@github).</li>
+<li>Si aparece "expired": en el panel, <strong>⋯ → Disable key expiry</strong>.</li>
+<li>Si queda pendiente de aprobación o con la identidad rota: ver <em>Incidencia resuelta</em> en <a href="#acceso-remoto">acceso-remoto.md</a>.</li>
+</ul>
+<h2>8b. No llegan los archivos enviados con Taildrop</h2>
+<p>Ver <a href="#taildrop">taildrop.md</a>, sección <em>Si deja de recibir archivos</em>. Revisión rápida: <code>systemctl status taildrop-recibir --no-pager</code>.</p>
+<h2>9. Restaurar desde una copia de seguridad</h2>
+<p>Las copias están en <code>/srv/servidor/backups/{diario,semanal,mensual}/AAAA-MM-DD/</code>. Ver ejemplos completos en <a href="#backups">backups.md</a>.</p>
+<pre><code class="language-bash">ls /srv/servidor/backups/diario/
+cd /srv/servidor/backups/diario/AAAA-MM-DD &amp;&amp; sudo sha256sum -c SHA256SUMS   # comprobar integridad
+</code></pre>
+<h2>10. La Orange Pi se calienta o va lenta</h2>
+<pre><code class="language-bash">cat /sys/class/thermal/thermal_zone0/temp    # en m°C (47000 = 47 °C)
+free -h; uptime
+top -o %MEM
+</code></pre>
+<p>Normal en reposo: 45–55 °C, menos del 25 % de RAM usada. Por encima de 75 °C conviene un disipador o un ventilador.</p>
+<h2>11. Antes de actualizar el sistema</h2>
+<p>El kernel y el arranque están <strong>congelados</strong> (imagen nightly). <code>sudo apt update &amp;&amp; sudo apt upgrade</code> es seguro.
+Para ver qué está congelado: <code>apt-mark showhold</code>. <strong>No</strong> ejecutes <code>apt-mark unhold</code> sin un backup y acceso físico a la placa.</p></section><section id="taildrop"><h1>Taildrop: enviar archivos al servidor ("AirDrop" propio)</h1>
+<h2>Qué es</h2>
+<p>Taildrop es la función de Tailscale para enviar archivos entre tus dispositivos. En el servidor, un servicio recoge
+automáticamente todo lo que llega y lo guarda en el HDD. Funciona en casa y fuera de casa, sin abrir puertos.</p>
+<pre><code>Celular / ASUS ──(Tailscale, cifrado)──► leandro-home-server ──► /srv/servidor/archivos/Taildrop
+                                                                    = Z:\Taildrop en el ASUS
+</code></pre>
+<h2>Cómo usarlo</h2>
+<table>
+<thead>
+<tr>
+<th>Desde</th>
+<th>Pasos</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Celular (Android)</strong></td>
+<td>En cualquier app (Galería, Archivos, WhatsApp...): <strong>Compartir → Tailscale → leandro-home-server</strong></td>
+</tr>
+<tr>
+<td><strong>ASUS (Windows)</strong></td>
+<td>Clic derecho sobre un archivo → <strong>Enviar con Tailscale</strong> → leandro-home-server</td>
+</tr>
+</tbody>
+</table>
+<p>Dónde aparece:
+| Desde | Ruta |
+|---|---|
+| ASUS | <code>Z:\Taildrop</code> (pulsa F5 si no se ve aún) |
+| Celular (CX File Explorer) | <code>archivos → Taildrop</code> |
+| Servidor | <code>/srv/servidor/archivos/Taildrop</code> |</p>
+<p>Si envías dos veces un archivo con el mismo nombre, <strong>no se sobrescribe</strong>: el nuevo se renombra (<code>foto (1).jpg</code>).</p>
+<h2>Cómo está configurado (2026-11-13)</h2>
+<pre><code class="language-bash">sudo tailscale set --operator=leandro          # leandro puede usar 'tailscale file get' sin sudo
+# servicio: /etc/systemd/system/taildrop-recibir.service (ver configuraciones/taildrop-recibir.service)
+sudo systemctl daemon-reload &amp;&amp; sudo systemctl enable --now taildrop-recibir
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Opción</th>
+<th>Función</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>User=leandro</code></td>
+<td>Los archivos quedan como tuyos: se abren y borran desde Windows sin problemas</td>
+</tr>
+<tr>
+<td><code>--loop</code></td>
+<td>Recoge cada archivo apenas llega</td>
+</tr>
+<tr>
+<td><code>--conflict=rename</code></td>
+<td>Nunca sobrescribe</td>
+</tr>
+<tr>
+<td><code>RequiresMountsFor=/srv/servidor</code></td>
+<td>Si el HDD no está montado, no recibe (protege la microSD)</td>
+</tr>
+<tr>
+<td><code>Restart=always</code></td>
+<td>Se reinicia solo si falla</td>
+</tr>
+</tbody>
+</table>
+<h2>Fotos HEIC</h2>
+<ul>
+<li>Samsung guarda las fotos en <strong>HEIC</strong> si la opción "Fotos HEIF" de la cámara está activa. Windows no las abre sin extensión.</li>
+<li><strong>Solución aplicada:</strong> en el celular, <em>Cámara → ⚙️ → Opciones avanzadas de imagen → Formatos de imagen →</em> <strong>"Fotos HEIF" desactivado</strong>. Las fotos nuevas salen en JPG.</li>
+<li>Las fotos <strong>antiguas</strong> de la galería siguen siendo HEIC. Opciones:</li>
+<li>Windows: instalar <strong>"Extensiones de imagen HEIF"</strong> (gratis, Microsoft Store).</li>
+<li>Servidor (conversores instalados: <code>libheif-examples</code>, <code>webp</code>). Conversión manual sin borrar los originales:
+    <code>bash
+    cd /srv/servidor/archivos/Taildrop &amp;&amp; for f in *.heic; do heif-dec -q 92 "$f" "${f%.heic}.jpg" &gt;/dev/null &amp;&amp; touch -r "$f" "${f%.heic}.jpg" &amp;&amp; echo "OK $f"; done; cd ~</code></li>
+<li>Si Windows dice <strong>"COM Surrogate tiene abierto el archivo"</strong> al borrar un HEIC: cambia la vista a <em>Detalles</em>, cierra el panel de vista previa (<code>Alt+P</code>) o finaliza <em>COM Surrogate</em> en el Administrador de tareas, y reintenta.</li>
+</ul>
+<h2>Si deja de recibir archivos</h2>
+<pre><code class="language-bash">systemctl status taildrop-recibir --no-pager | head -6      # debe estar active (running)
+journalctl -u taildrop-recibir -n 20 --no-pager
+sudo tailscale file get --verbose /srv/servidor/archivos/Taildrop/   # recoger a mano lo pendiente
+sudo chown -R leandro:leandro /srv/servidor/archivos/Taildrop
+sudo systemctl restart taildrop-recibir
+</code></pre>
+<ul>
+<li><code>moved 0/0 files</code> = no había nada pendiente (el servicio ya lo había recogido).</li>
+<li>Comprueba que el celular tenga Tailscale <strong>Connected</strong> y que el servidor aparezca en la lista al compartir.</li>
+</ul></section><section id="arquitectura"><h1>Arquitectura</h1>
+<pre><code>                 ┌──────────────────────────────┐
+  ESP32 (n) ───► │  Mosquitto 2.0.21  :1883     │
+  casa/&lt;zona&gt;/&lt;dispositivo&gt;/&lt;medida&gt;            │
+                 │        │                     │
+                 │        ▼                     │
+                 │  Node-RED  :1880             │──► Dashboard 2.0 (/dashboard)
+                 │        │                     │
+                 │        ▼                     │
+                 │  SQLite en HDD               │
+                 │  /srv/servidor/bases_datos   │
+                 └──────────────────────────────┘
+                    Samba · Tailscale · Backups
+</code></pre>
+<h2>Decisiones técnicas (borrador, se confirman en cada etapa)</h2>
+<table>
+<thead>
+<tr>
+<th>Necesidad</th>
+<th>Elección</th>
+<th>Motivo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Base de datos</td>
+<td>SQLite</td>
+<td>Sin servidor ni RAM residente. InfluxDB 2.x no soporta 32 bits y MariaDB es excesiva para este volumen.</td>
+</tr>
+<tr>
+<td>Panel IoT</td>
+<td>Node-RED Dashboard 2.0</td>
+<td>Ya instalado; no consume RAM adicional.</td>
+</tr>
+<tr>
+<td>Panel del sistema</td>
+<td>Dashboard 2.0 + Cockpit opcional</td>
+<td>Cockpit se activa por socket y solo consume RAM mientras se usa. Netdata es demasiado pesado para 1 GB.</td>
+</tr>
+<tr>
+<td>Acceso remoto</td>
+<td>Tailscale</td>
+<td>Tiene paquete armhf y no requiere abrir puertos.</td>
+</tr>
+<tr>
+<td>NAS</td>
+<td>Samba</td>
+<td>Integración nativa con Windows.</td>
+</tr>
+</tbody>
+</table>
+<h2>Convención de tópicos MQTT (adoptada)</h2>
+<p>Se conserva el prefijo <code>domotica/</code> que ya usaban el ESP32 y Node-RED:</p>
+<pre><code>domotica/&lt;zona&gt;/estado        JSON de telemetría del dispositivo
+domotica/&lt;zona&gt;/&lt;recurso&gt;/set orden (p. ej. domotica/habitacion/luz/set)
+</code></pre>
+<p>Ver <a href="#mqtt">mqtt.md</a>.</p></section><section id="hardware"><h1>Hardware</h1>
+<p>Datos obtenidos con el diagnóstico de la Etapa 1 (2026-11-13).</p>
+<h2>Placa</h2>
+<table>
+<thead>
+<tr>
+<th>Parámetro</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Modelo</td>
+<td>Orange Pi PC Plus V1.1 (<code>BOARD=orangepipcplus</code>, familia sun8i)</td>
+</tr>
+<tr>
+<td>SoC</td>
+<td>Allwinner H3</td>
+</tr>
+<tr>
+<td>CPU</td>
+<td>4× ARM Cortex-A7 (ARMv7 rev 5), 480–1296 MHz, NEON, VFPv4</td>
+</tr>
+<tr>
+<td>Arquitectura</td>
+<td><code>armv7l</code> (32 bits) → paquetes Debian <code>armhf</code></td>
+</tr>
+<tr>
+<td>RAM</td>
+<td>991 MiB; ~830 MiB disponibles en reposo</td>
+</tr>
+<tr>
+<td>Swap</td>
+<td>zram de 496 MiB (comprimida en RAM)</td>
+</tr>
+<tr>
+<td>Temperatura CPU en reposo</td>
+<td>47,7 °C</td>
+</tr>
+</tbody>
+</table>
+<h2>Almacenamiento</h2>
+<table>
+<thead>
+<tr>
+<th>Dispositivo</th>
+<th>Tamaño</th>
+<th>Uso actual</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mmcblk0</code> (microSD)</td>
+<td>28,8 GB</td>
+<td><strong>Sistema operativo</strong> (<code>/</code>, ext4, 8 % usado)</td>
+</tr>
+<tr>
+<td><code>mmcblk2</code> (eMMC)</td>
+<td>7,3 GB</td>
+<td>Imagen de fábrica (Android/vendor) sin uso</td>
+</tr>
+<tr>
+<td><code>sda</code> (HDD USB)</td>
+<td>931,5 GB</td>
+<td><code>sda1</code> ext4 "servidor" → <code>/srv/servidor</code></td>
+</tr>
+<tr>
+<td><code>zram1</code></td>
+<td>50 MB</td>
+<td><code>/var/log</code> (log2ram)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Observación: el sistema arranca desde la <strong>microSD</strong>, no desde la eMMC.</p>
+</blockquote>
+<h2>HDD</h2>
+<ul>
+<li>Modelo: ST1000LM024 HN-M101MBB (disco de portátil 2,5", 5400 rpm, 1 TB).</li>
+<li>Adaptador: JMicron JM20329 (<code>152d:2329</code>), USB 2.0, driver <code>usb-storage</code> (no UAS).</li>
+<li>Sin errores de E/S en el arranque.</li>
+</ul>
+<h2>Red</h2>
+<ul>
+<li>WiFi integrado (SDIO) → interfaz <code>wlan1</code> activa.</li>
+<li>Ethernet 100 Mbps <code>end0</code>: inactiva; el kernel registra <code>Failed to reset the dma</code> (típico cuando no hay cable conectado).</li>
+</ul>
+<h2>IoT</h2>
+<ul>
+<li>ESP32 DevKit V1 (ESP32-WROOM-32), DHT22, OLED, módulos de relé, protoboard y cables Dupont.</li>
+</ul></section><section id="red"><h1>Red</h1>
+<h2>Estado actual</h2>
+<table>
+<thead>
+<tr>
+<th>Interfaz</th>
+<th>Estado</th>
+<th>IP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wlan1</code> (WiFi)</td>
+<td>UP</td>
+<td>192.168.1.9/24 (DHCP)</td>
+</tr>
+<tr>
+<td><code>wlan0</code></td>
+<td>DOWN</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>end0</code> (Ethernet)</td>
+<td>DOWN</td>
+<td>— (error <code>Failed to reset the dma</code>)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>Puerta de enlace: 192.168.1.1</li>
+<li>DNS: systemd-resolved (127.0.0.53)</li>
+<li>Internet: correcto (1.1.1.1 ≈ 18 ms, google.com ≈ 15 ms)</li>
+<li>Gestión de red: netplan + systemd-networkd (<code>netplan-wpa-wlan1.service</code>)</li>
+</ul>
+<h2>Puertos escuchando</h2>
+<table>
+<thead>
+<tr>
+<th>Puerto</th>
+<th>Servicio</th>
+<th>Alcance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>22/tcp</td>
+<td>SSH</td>
+<td>Todas las interfaces</td>
+</tr>
+<tr>
+<td>1880/tcp</td>
+<td>Node-RED + Dashboard</td>
+<td>Todas las interfaces</td>
+</tr>
+<tr>
+<td>1883/tcp</td>
+<td>Mosquitto</td>
+<td>Todas las interfaces (IPv4/IPv6)</td>
+</tr>
+<tr>
+<td>5355/tcp+udp</td>
+<td>LLMNR (systemd-resolved)</td>
+<td>Todas las interfaces (innecesario)</td>
+</tr>
+<tr>
+<td>53</td>
+<td>DNS local</td>
+<td>Solo localhost</td>
+</tr>
+</tbody>
+</table>
+<h2>Pendientes</h2>
+<ul>
+<li>Reservar la IP 192.168.1.9 en el router (reserva DHCP).</li>
+<li>Evaluar el cambio a Ethernet para mayor estabilidad 24/7.</li>
+<li>Tailscale para acceso remoto (Etapa 8).</li>
+<li>Desactivar LLMNR.</li>
+</ul></section><section id="almacenamiento"><h1>Almacenamiento</h1>
+<h2>Resumen</h2>
+<table>
+<thead>
+<tr>
+<th>Dispositivo</th>
+<th>Uso</th>
+<th>Sistema de archivos</th>
+<th>Montaje</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>microSD <code>mmcblk0p1</code> (29 GB)</td>
+<td>Sistema operativo</td>
+<td>ext4</td>
+<td><code>/</code></td>
+</tr>
+<tr>
+<td>HDD <code>sda1</code> (916 GB)</td>
+<td>Datos del servidor</td>
+<td>ext4 (etiqueta <code>servidor</code>)</td>
+<td><code>/srv/servidor</code></td>
+</tr>
+<tr>
+<td><code>zram1</code> (50 MB)</td>
+<td>Logs en RAM (log2ram)</td>
+<td>ext4</td>
+<td><code>/var/log</code></td>
+</tr>
+</tbody>
+</table>
+<h2>HDD: historial</h2>
+<ul>
+<li><strong>Estado inicial (2026-11-13):</strong> el disco tenía 5 particiones de un antiguo Windows (EFI, MSR, NTFS de 372 GB vacía, recuperación y NTFS "memoria" con 20 GB de datos antiguos).</li>
+<li><strong>Decisión:</strong> el usuario autorizó borrar toda la información y usar el disco completo para el servidor.</li>
+</ul>
+<h2>Procedimiento realizado (Etapa 2)</h2>
+<pre><code class="language-bash"># 1. Borrar firmas y crear GPT con una sola partición Linux
+sudo wipefs -a /dev/sda1 /dev/sda2 /dev/sda3 /dev/sda4 /dev/sda5
+sudo wipefs -a /dev/sda
+printf 'label: gpt\n,,L\n' | sudo sfdisk /dev/sda
+
+# 2. Formatear (1 % reservado en lugar del 5 % por defecto)
+sudo mkfs.ext4 -L servidor -m 1 /dev/sda1
+
+# 3. Montaje permanente
+sudo cp /etc/fstab /etc/fstab.bak-20261113
+sudo mkdir -p /srv/servidor
+echo 'UUID=39ca6a1f-0cc4-437a-ac86-573b770455a5  /srv/servidor  ext4  defaults,noatime,nofail,x-systemd.device-timeout=30s  0  2' | sudo tee -a /etc/fstab
+sudo systemctl daemon-reload &amp;&amp; sudo mount -a
+</code></pre>
+<h2>Línea en <code>/etc/fstab</code></h2>
+<pre><code>UUID=39ca6a1f-0cc4-437a-ac86-573b770455a5  /srv/servidor  ext4  defaults,noatime,nofail,x-systemd.device-timeout=30s  0  2
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Opción</th>
+<th>Motivo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>noatime</code></td>
+<td>No registrar los accesos de lectura: menos escrituras.</td>
+</tr>
+<tr>
+<td><code>nofail</code></td>
+<td>El sistema arranca aunque el HDD falle o esté desconectado.</td>
+</tr>
+<tr>
+<td><code>x-systemd.device-timeout=30s</code></td>
+<td>Espera máxima por el disco en el arranque.</td>
+</tr>
+<tr>
+<td><code>0 2</code></td>
+<td>Sin dump; fsck después de la raíz.</td>
+</tr>
+</tbody>
+</table>
+<p>Respaldo del fstab original: <code>/etc/fstab.bak-20261113</code>.</p>
+<h2>Estructura y permisos</h2>
+<table>
+<thead>
+<tr>
+<th>Carpeta</th>
+<th>Dueño:grupo</th>
+<th>Permisos</th>
+<th>Uso</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>archivos/</code></td>
+<td>leandro:leandro</td>
+<td>755</td>
+<td>Archivos personales (Samba)</td>
+</tr>
+<tr>
+<td><code>compartido/</code></td>
+<td>leandro:leandro</td>
+<td>755</td>
+<td>Carpeta compartida (Samba)</td>
+</tr>
+<tr>
+<td><code>nodered/</code></td>
+<td>leandro:leandro</td>
+<td>755</td>
+<td>Datos de Node-RED</td>
+</tr>
+<tr>
+<td><code>registros/</code></td>
+<td>leandro:leandro</td>
+<td>755</td>
+<td>Logs persistentes</td>
+</tr>
+<tr>
+<td><code>bases_datos/</code></td>
+<td>leandro:leandro</td>
+<td>750</td>
+<td>SQLite</td>
+</tr>
+<tr>
+<td><code>mqtt/</code></td>
+<td>mosquitto:mosquitto</td>
+<td>750</td>
+<td>Persistencia/logs de Mosquitto</td>
+</tr>
+<tr>
+<td><code>backups/</code></td>
+<td>root:leandro</td>
+<td>750</td>
+<td>Copias de seguridad</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash">sudo mkdir -p /srv/servidor/{archivos,backups,mqtt,nodered,registros,compartido,bases_datos}
+sudo chown leandro:leandro /srv/servidor/{archivos,compartido,nodered,bases_datos,registros}
+sudo chown mosquitto:mosquitto /srv/servidor/mqtt
+sudo chown root:leandro /srv/servidor/backups
+sudo chmod 750 /srv/servidor/{backups,bases_datos,mqtt}
+</code></pre>
+<h2>Verificación</h2>
+<ul>
+<li><code>mount -a</code> sin errores.</li>
+<li>Reinicio el 2026-11-13: el disco se montó automáticamente en <code>/srv/servidor</code> y conservó las carpetas y los permisos. ✅</li>
+</ul>
+<h2>Notas</h2>
+<ul>
+<li>Adaptador JMicron JM20329, USB 2.0: velocidad práctica de unos 30–35 MB/s.</li>
+<li>Tras el formateo, <code>ext4lazyinit</code> inicializa tablas en segundo plano durante horas (actividad normal del disco).</li>
+<li>Pendiente opcional: revisar la salud del disco con <code>smartmontools</code> (SMART).</li>
+</ul></section><section id="samba"><h1>NAS con Samba (Etapa 3)</h1>
+<h2>Instalación</h2>
+<ul>
+<li>Paquete: <code>samba</code> 2:4.22.11+dfsg-0+deb13u1 (Debian trixie estable, armhf). Se descartó la versión de backports.</li>
+<li>Consumo: unos 10 MB de RAM (<code>smbd</code>).</li>
+<li><code>nmbd</code> (NetBIOS) desactivado: el acceso se hace por IP.</li>
+</ul>
+<pre><code class="language-bash">sudo apt install samba
+sudo cp /etc/samba/smb.conf /etc/samba/smb.conf.bak-original
+# configuración: ver configuraciones/smb.conf
+testparm -s
+sudo smbpasswd -a leandro        # contraseña Samba (independiente de la de Linux)
+sudo systemctl restart smbd
+sudo systemctl disable --now nmbd
+</code></pre>
+<h2>Recursos compartidos</h2>
+<table>
+<thead>
+<tr>
+<th>Recurso</th>
+<th>Ruta</th>
+<th>Acceso</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>\\192.168.1.9\archivos</code></td>
+<td>/srv/servidor/archivos</td>
+<td>leandro, lectura/escritura (unidad Z:)</td>
+</tr>
+<tr>
+<td><code>\\192.168.1.9\compartido</code></td>
+<td>/srv/servidor/compartido</td>
+<td>leandro, lectura/escritura</td>
+</tr>
+<tr>
+<td><code>\\192.168.1.9\backups</code></td>
+<td>/srv/servidor/backups</td>
+<td>leandro, <strong>solo lectura</strong></td>
+</tr>
+</tbody>
+</table>
+<h2>Seguridad aplicada</h2>
+<ul>
+<li><code>server min protocol = SMB3</code> (SMB1/SMB2 rechazados). Sesión verificada: <strong>SMB3_11</strong>, firma <strong>AES-128-GMAC</strong>.</li>
+<li>Sin invitados ni acceso anónimo (<code>map to guest = never</code>, <code>restrict anonymous = 2</code>).</li>
+<li><code>hosts allow</code>: solo la LAN 192.168.1.0/24, localhost y Tailscale 100.64.0.0/10.</li>
+<li>Sin cifrado SMB en la LAN: el H3 no tiene aceleración AES de ARMv8, así que cifrar reduciría mucho la velocidad. El acceso remoto irá cifrado por Tailscale (WireGuard).</li>
+</ul>
+<h2>Conexión desde Windows</h2>
+<pre><code class="language-powershell">net use Z: \\192.168.1.9\archivos /persistent:yes
+</code></pre>
+<h2>Verificación</h2>
+<pre><code class="language-bash">sudo smbstatus          # sesiones activas, protocolo, firma
+testparm -s             # validar la configuración
+</code></pre></section><section id="mqtt"><h1>MQTT: Mosquitto (Etapa 4)</h1>
+<h2>Estado</h2>
+<ul>
+<li>Mosquitto 2.0.21 (paquete Debian, armhf), puerto 1883 (LAN + Tailscale; no expuesto a internet).</li>
+<li>Persistencia: <code>/var/lib/mosquitto/mosquitto.db</code>.</li>
+<li>Registro: <code>/var/log/mosquitto/mosquitto.log</code> (log2ram, rotado por logrotate: 7 días o 100 KB, comprimido).</li>
+<li>Config: <code>/etc/mosquitto/mosquitto.conf</code> + <code>/etc/mosquitto/conf.d/domotica.conf</code> (ver <code>configuraciones/</code>).</li>
+</ul>
+<h2>Archivos y permisos</h2>
+<table>
+<thead>
+<tr>
+<th>Archivo</th>
+<th>Dueño</th>
+<th>Permisos</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/etc/mosquitto/passwd</code></td>
+<td>root:mosquitto</td>
+<td>640</td>
+</tr>
+<tr>
+<td><code>/etc/mosquitto/acl</code></td>
+<td>root:mosquitto</td>
+<td>640</td>
+</tr>
+<tr>
+<td>Respaldos</td>
+<td><code>passwd.bak-20261113</code>, <code>conf.d/domotica.conf.bak-20261113</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><code>mosquitto_passwd</code> avisa de "group is not root": se mantiene el grupo <code>mosquitto</code> porque el broker necesita leer el archivo al hacer <code>reload</code>.</p>
+</blockquote>
+<h2>Usuarios</h2>
+<table>
+<thead>
+<tr>
+<th>Usuario</th>
+<th>Cliente</th>
+<th>Permisos</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>leandro</code></td>
+<td>Administración/pruebas</td>
+<td><code>#</code> lectura y escritura, <code>$SYS/#</code> lectura</td>
+</tr>
+<tr>
+<td><code>nodered</code></td>
+<td>Node-RED</td>
+<td><code>domotica/#</code> lectura y escritura</td>
+</tr>
+<tr>
+<td><code>esp32-habitacion</code></td>
+<td>ESP32 de la habitación</td>
+<td>escribe <code>domotica/habitacion/estado</code> y <code>domotica/habitacion/conexion</code>, lee <code>domotica/habitacion/luz/set</code></td>
+</tr>
+</tbody>
+</table>
+<p>Las contraseñas <strong>no</strong> se guardan en esta documentación.</p>
+<h2>Tópicos en uso</h2>
+<table>
+<thead>
+<tr>
+<th>Tópico</th>
+<th>Publica</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>domotica/habitacion/estado</code></td>
+<td>ESP32 cada 10 s</td>
+<td>JSON: <code>temp</code>, <code>hum</code>, <code>luz</code>, <code>rssi</code>, <code>heap_libre</code>, <code>heap_min</code>, <code>heap_total</code>, <code>cpu_mhz</code>, <code>cpu0</code>, <code>cpu1</code>, <code>uptime</code></td>
+</tr>
+<tr>
+<td><code>domotica/habitacion/luz/set</code></td>
+<td>Node-RED</td>
+<td>Orden del relé de la luz</td>
+</tr>
+<tr>
+<td><code>domotica/habitacion/conexion</code></td>
+<td>ESP32 / LWT (retenido)</td>
+<td><code>online</code> / <code>offline</code></td>
+</tr>
+<tr>
+<td><code>domotica/servidor/estado</code></td>
+<td>Node-RED cada 30 s (retain)</td>
+<td>JSON con el estado del servidor (ver monitorizacion.md)</td>
+</tr>
+</tbody>
+</table>
+<p>Convención para nuevos dispositivos: <code>domotica/&lt;zona&gt;/&lt;recurso&gt;[/set]</code>.</p>
+<h2>Pruebas realizadas (2026-11-13)</h2>
+<table>
+<thead>
+<tr>
+<th>Prueba</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Credenciales incorrectas</td>
+<td>Rechazadas ("not authorised") ✅</td>
+</tr>
+<tr>
+<td><code>nodered</code> publica en <code>domotica/prueba</code></td>
+<td>Recibido ✅</td>
+</tr>
+<tr>
+<td><code>esp32-habitacion</code> publica en <code>domotica/prueba</code></td>
+<td>Bloqueado por la ACL ("Timed out") ✅</td>
+</tr>
+<tr>
+<td>ESP32 y Node-RED tras activar la ACL</td>
+<td>Reconectados y enviando datos ✅</td>
+</tr>
+</tbody>
+</table>
+<h2>Comandos útiles</h2>
+<pre><code class="language-bash"># escuchar todo lo de la casa (espacio inicial = no guardar en historial)
+ mosquitto_sub -h localhost -u leandro -P '****' -t 'domotica/#' -v
+# añadir/cambiar usuario (NUNCA usar -c)
+sudo mosquitto_passwd /etc/mosquitto/passwd &lt;usuario&gt; &amp;&amp; sudo systemctl reload mosquitto
+sudo tail -f /var/log/mosquitto/mosquitto.log
+</code></pre>
+<h2>Pendiente de migración</h2>
+<ol>
+<li>~~Node-RED → usuario <code>nodered</code> (Etapa 5).~~ ✅ 2026-11-13</li>
+<li>~~ESP32 → usuario <code>esp32-habitacion</code> (Etapa 10).~~ ✅</li>
+<li>~~Eliminar el usuario <code>esp32</code> y su bloque en la ACL.~~ ✅ Migración completada.</li>
+</ol></section><section id="nodered"><h1>Node-RED (Etapa 5)</h1>
+<h2>Estado</h2>
+<table>
+<thead>
+<tr>
+<th>Elemento</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Versión</td>
+<td>Node-RED 5.0.9 · Node.js v22.15.0 · npm 10.9.2</td>
+</tr>
+<tr>
+<td>Servicio</td>
+<td><code>nodered.service</code> (usuario <code>leandro</code>), unos 130 MB de RAM</td>
+</tr>
+<tr>
+<td>Directorio</td>
+<td><code>/home/leandro/.node-red</code></td>
+</tr>
+<tr>
+<td>Editor</td>
+<td>http://192.168.1.9:1880 (<code>adminAuth</code>, usuario <code>leandro</code>) → 401 sin sesión ✅</td>
+</tr>
+<tr>
+<td>Dashboard 2.0</td>
+<td>http://192.168.1.9:1880/dashboard · <strong>sin contraseña por decisión del usuario</strong> (accesible solo desde la LAN y Tailscale gracias a UFW)</td>
+</tr>
+<tr>
+<td>Credenciales</td>
+<td>Cifradas (<code>credentialSecret</code>) ✅</td>
+</tr>
+<tr>
+<td>MQTT</td>
+<td>Nodo de configuración "Mosquitto local" → <code>localhost:1883</code>, usuario <code>nodered</code> ✅</td>
+</tr>
+</tbody>
+</table>
+<h2>Nodos instalados</h2>
+<p><code>@flowfuse/node-red-dashboard</code> 1.36.1, <code>node-red-contrib-buffer-parser</code>, <code>node-red-contrib-play-audio</code>,
+<code>node-red-node-ping</code>, <code>node-red-node-random</code>, <code>node-red-node-serialport</code>, <code>node-red-node-smooth</code>,
+<code>node-red-node-pi-gpio</code> (solo Raspberry Pi; no sirve en Orange Pi, candidato a desinstalar).</p>
+<h2>Flujo "Domótica habitación"</h2>
+<ul>
+<li><code>mqtt in</code> <strong>Estado ESP32</strong> (<code>domotica/habitacion/estado</code>, JSON) → función <strong>Separar datos</strong> → widgets del dashboard.</li>
+<li>Botón <strong>Conmutar luz</strong> → <code>mqtt out</code> <strong>Orden a la luz</strong> (<code>domotica/habitacion/luz/set</code>).</li>
+</ul>
+<h2>Cambios realizados (2026-11-13)</h2>
+<pre><code class="language-bash"># respaldo previo
+sudo tar --exclude=node_modules -czf /srv/servidor/backups/nodered-20261113.tar.gz -C /home/leandro .node-red
+# 1. cifrado de credenciales (clave guardada FUERA del repositorio)
+#    settings.js: credentialSecret: &quot;&lt;clave de 48 hex&gt;&quot;   (respaldo settings.js.bak-20261113)
+# 2. autenticación del dashboard: NO aplicada (decisión del usuario, 2026-11-13)
+# 3. broker MQTT en la interfaz: usuario esp32 → nodered, y Deploy
+</code></pre>
+<blockquote>
+<p>⚠️ Sin la <code>credentialSecret</code>, un <code>flows_cred.json</code> restaurado no se puede descifrar. Guárdala en un gestor de contraseñas.</p>
+</blockquote>
+<h2>Verificación</h2>
+<pre><code class="language-bash">curl -s -o /dev/null -w '%{http_code}\n' http://localhost:1880/flows       # 401
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:1880/dashboard/  # 200 (sin contraseña, por decisión)
+head -c 120 ~/.node-red/flows_cred.json                                   # {&quot;$&quot;: &quot;...&quot;}  cifrado
+journalctl -u nodered -n 30 --no-pager
+</code></pre></section><section id="base-datos"><h1>Base de datos: SQLite (Etapa 6)</h1>
+<h2>Decisión</h2>
+<table>
+<thead>
+<tr>
+<th>Opción</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>SQLite</strong></td>
+<td>✅ Elegida: no consume RAM en reposo, es un solo archivo y se respalda copiándolo</td>
+</tr>
+<tr>
+<td>MariaDB</td>
+<td>❌ 80–150 MB de RAM permanentes, excesivo para este volumen</td>
+</tr>
+<tr>
+<td>InfluxDB 2.x</td>
+<td>❌ No existe para ARM de 32 bits</td>
+</tr>
+<tr>
+<td>InfluxDB 1.8</td>
+<td>❌ Sin soporte</td>
+</tr>
+</tbody>
+</table>
+<h2>Componentes</h2>
+<ul>
+<li>Motor: módulo <code>node:sqlite</code> de Node.js v22.15 (SQLite 3.49.1). Sin nodos extra ni compilación.</li>
+<li>Aviso <code>ExperimentalWarning</code> en el log: normal (la API de Node podría cambiar en versiones futuras).</li>
+<li>CLI: paquete <code>sqlite3</code> 3.46.1 (Debian).</li>
+<li>Archivo: <code>/srv/servidor/bases_datos/domotica.db</code> (leandro:leandro, modo WAL).</li>
+<li>Esquema: <a href="#archivos"><code>configuraciones/esquema-domotica.sql</code></a>.</li>
+</ul>
+<h2>Tablas</h2>
+<table>
+<thead>
+<tr>
+<th>Tabla</th>
+<th>Contenido</th>
+<th>Frecuencia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dispositivos</code></td>
+<td>Catálogo de ESP32 y <code>ultimo_contacto</code></td>
+<td>Alta manual / actualización cada minuto</td>
+</tr>
+<tr>
+<td><code>lecturas</code></td>
+<td>Temperatura, humedad, RSSI, heap, uptime</td>
+<td>Promedio cada 60 s (unos 35 MB/año)</td>
+</tr>
+<tr>
+<td><code>estados_rele</code></td>
+<td>Cambios de relé (<code>origen</code>: inicio/esp32)</td>
+<td>Solo cuando cambia</td>
+</tr>
+<tr>
+<td><code>eventos</code></td>
+<td>Inicio/parada del registro, ESP32 sin datos o reconectado</td>
+<td>Cuando ocurre</td>
+</tr>
+</tbody>
+</table>
+<h2>Integración con Node-RED</h2>
+<ul>
+<li><code>settings.js</code> → <code>functionGlobalContext: { sqlite: require("node:sqlite"), ... }</code> (respaldo <code>settings.js.bak-sqlite</code>).</li>
+<li>Flujo importado: <a href="#archivos"><code>configuraciones/nodered/flujo-historial-sqlite.json</code></a></li>
+<li><code>Estado ESP32</code> → <strong>Guardar historial</strong> (abre la BD en <em>On Start</em>, guarda cada 60 s, la cierra en <em>On Stop</em>).</li>
+<li><strong>Consultar BD</strong> → <strong>Últimos registros</strong> → Debug.</li>
+</ul>
+<h2>Consultas útiles</h2>
+<pre><code class="language-bash">DB=/srv/servidor/bases_datos/domotica.db
+sqlite3 -header -column $DB &quot;SELECT * FROM lecturas ORDER BY id DESC LIMIT 10;&quot;
+sqlite3 -header -column $DB &quot;SELECT date(ts) dia, round(min(temperatura),1) tmin, round(max(temperatura),1) tmax, round(avg(humedad)) hum FROM lecturas GROUP BY dia ORDER BY dia DESC LIMIT 7;&quot;
+sqlite3 -header -column $DB &quot;SELECT * FROM eventos ORDER BY id DESC LIMIT 20;&quot;
+ls -lh /srv/servidor/bases_datos/
+</code></pre>
+<h2>Respaldo seguro (con la BD en uso)</h2>
+<pre><code class="language-bash">sqlite3 /srv/servidor/bases_datos/domotica.db &quot;.backup '/ruta/destino/domotica-$(date +%F).db'&quot;
+</code></pre></section><section id="monitorizacion"><h1>Monitorización (Etapa 7)</h1>
+<h2>Decisión</h2>
+<table>
+<thead>
+<tr>
+<th>Opción</th>
+<th>RAM extra</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Netdata</td>
+<td>100–200 MB</td>
+<td>❌ Demasiado para 1 GB</td>
+</tr>
+<tr>
+<td>Cockpit</td>
+<td>20–40 MB mientras se usa</td>
+<td>Posible, pero añade otra web y otro inicio de sesión</td>
+</tr>
+<tr>
+<td><strong>Node-RED Dashboard 2.0</strong></td>
+<td>~0 MB (ya instalado)</td>
+<td>✅ Un solo panel para la habitación y el servidor</td>
+</tr>
+</tbody>
+</table>
+<h2>Componentes</h2>
+<ul>
+<li>Script de solo lectura: <code>/usr/local/bin/estado-servidor.sh</code> (copia en <a href="#archivos"><code>scripts/estado-servidor.sh</code></a>).</li>
+<li><code>export LC_ALL=C</code> es obligatorio: con el locale es_CO, <code>awk</code> escribía <code>52,1</code> y rompía el JSON.</li>
+<li>Flujo: <a href="#archivos"><code>configuraciones/nodered/flujo-monitor-servidor.json</code></a>, pestaña <strong>Servidor</strong>:
+  <code>Cada 30 s</code> → <code>exec estado-servidor.sh</code> → <code>json</code> → <code>Repartir datos</code> → 10 widgets + <code>mqtt out</code>.</li>
+<li>Página del dashboard: http://192.168.1.9:1880/dashboard/servidor (grupos Recursos, Almacenamiento y Servicios).</li>
+<li>MQTT: <code>domotica/servidor/estado</code> (retain) con el JSON completo.</li>
+</ul>
+<h2>Campos del JSON</h2>
+<p><code>cpu</code> (%), <code>temp</code> (°C del SoC), <code>ram</code> (%), <code>ram_total_mb</code>, <code>ram_disp_mb</code>, <code>load</code> (1 min), <code>uptime</code> (s),
+<code>sd_uso</code> (%), <code>hdd_montado</code> (bool), <code>hdd_uso</code> (%), <code>hdd_libre_gb</code>, <code>mosquitto</code>, <code>nodered</code>, <code>samba</code> (bool).</p>
+<h2>Umbrales</h2>
+<table>
+<thead>
+<tr>
+<th>Métrica</th>
+<th>Verde</th>
+<th>Amarillo</th>
+<th>Rojo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CPU / RAM</td>
+<td>&lt; 60 %</td>
+<td>60–85 %</td>
+<td>&gt; 85 %</td>
+</tr>
+<tr>
+<td>Temp. CPU</td>
+<td>&lt; 65 °C</td>
+<td>65–80 °C</td>
+<td>&gt; 80 °C</td>
+</tr>
+<tr>
+<td>Discos</td>
+<td>&lt; 75 %</td>
+<td>75–90 %</td>
+<td>&gt; 90 %</td>
+</tr>
+</tbody>
+</table>
+<h2>Línea base (2026-11-13, en reposo)</h2>
+<p>CPU 0–5 % · RAM 16–17 % (unos 826 MB disponibles) · 47–52 °C · microSD 8 % · HDD 1 % (907 GB libres).</p>
+<h2>Verificación</h2>
+<pre><code class="language-bash">/usr/local/bin/estado-servidor.sh
+ mosquitto_sub -h localhost -u leandro -P '****' -t 'domotica/servidor/estado' -v -C 1
+</code></pre></section><section id="acceso-remoto"><h1>Acceso remoto y firewall (Etapa 8)</h1>
+<h2>Tailscale</h2>
+<table>
+<thead>
+<tr>
+<th>Dato</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Paquete</td>
+<td><code>tailscale</code> 1.104.7 (repositorio oficial <code>pkgs.tailscale.com/stable/debian trixie</code>, armhf)</td>
+</tr>
+<tr>
+<td>Nombre</td>
+<td><code>leandro-home-server</code> (MagicDNS)</td>
+</tr>
+<tr>
+<td>IP Tailscale</td>
+<td>100.76.238.119</td>
+</tr>
+<tr>
+<td>Cuenta</td>
+<td>leandro-ortegon@github (plan Free)</td>
+</tr>
+<tr>
+<td>Expiración de clave</td>
+<td>Desactivada en el servidor (<em>Disable key expiry</em>)</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-bash">curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.noarmor.gpg | sudo tee /usr/share/keyrings/tailscale-archive-keyring.gpg &gt; /dev/null
+curl -fsSL https://pkgs.tailscale.com/stable/debian/trixie.tailscale-keyring.list | sudo tee /etc/apt/sources.list.d/tailscale.list
+sudo apt update &amp;&amp; sudo apt install tailscale
+sudo tailscale up --hostname=leandro-home-server --auth-key=&lt;clave de un solo uso, revocada después&gt;
+</code></pre>
+<h3>Incidencia resuelta</h3>
+<p>El inicio de sesión por enlace dio <em>Error 500</em> y dejó el nodo pendiente de aprobación en otra cuenta
+(<code>register request: node ... already exists</code>). Solución:</p>
+<pre><code class="language-bash">sudo systemctl stop tailscaled
+sudo mv /var/lib/tailscale/tailscaled.state /var/lib/tailscale/tailscaled.state.bak-20261113
+sudo systemctl start tailscaled
+sudo tailscale up --hostname=leandro-home-server --auth-key=&lt;clave&gt;
+</code></pre>
+<h3>Accesos remotos</h3>
+<table>
+<thead>
+<tr>
+<th>Servicio</th>
+<th>Dirección</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SSH</td>
+<td><code>ssh leandro@leandro-home-server</code></td>
+</tr>
+<tr>
+<td>Node-RED</td>
+<td>http://leandro-home-server:1880</td>
+</tr>
+<tr>
+<td>Dashboard</td>
+<td>http://leandro-home-server:1880/dashboard</td>
+</tr>
+<tr>
+<td>Samba</td>
+<td><code>\\leandro-home-server\archivos</code></td>
+</tr>
+</tbody>
+</table>
+<p>No hay puertos abiertos en el router.</p>
+<h2>Firewall UFW</h2>
+<pre><code class="language-bash">sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow in on tailscale0 comment 'Tailscale: mis dispositivos'
+sudo ufw allow 41641/udp comment 'Tailscale conexion directa'
+sudo ufw allow from 192.168.1.0/24 to any port 22 proto tcp comment 'SSH LAN'
+sudo ufw allow from 192.168.1.0/24 to any port 1880 proto tcp comment 'Node-RED LAN'
+sudo ufw allow from 192.168.1.0/24 to any port 1883 proto tcp comment 'MQTT ESP32 LAN'
+sudo ufw allow from 192.168.1.0/24 to any port 445 proto tcp comment 'Samba LAN'
+# red de seguridad antes de activar:
+sudo systemd-run --on-active=5m --unit=ufw-rescate /usr/sbin/ufw disable
+sudo ufw enable
+# tras verificar SSH por LAN y Tailscale:
+sudo systemctl stop ufw-rescate.timer
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Origen</th>
+<th>Permitido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tailscale0</td>
+<td>Todo</td>
+</tr>
+<tr>
+<td>192.168.1.0/24</td>
+<td>22, 1880, 1883, 445 (TCP)</td>
+</tr>
+<tr>
+<td>Cualquiera</td>
+<td>41641/udp (Tailscale directo)</td>
+</tr>
+<tr>
+<td>Resto</td>
+<td>Denegado</td>
+</tr>
+</tbody>
+</table>
+<p>Verificar: <code>sudo ufw status verbose</code>. Desactivar en emergencia: <code>sudo ufw disable</code>.</p>
+<h2>Endurecimiento SSH (2026-11-13)</h2>
+<ul>
+<li>Llave <code>ed25519</code> del ASUS (<code>C:\Users\Asus\.ssh\id_ed25519</code>) en <code>~/.ssh/authorized_keys</code>.</li>
+<li>Configuración: <code>/etc/ssh/sshd_config.d/00-leandro-hardening.conf</code> (ver <a href="#archivos"><code>configuraciones/</code></a>). Respaldo: <code>/etc/ssh/sshd_config.bak-20261113</code>.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Prueba</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Llave por Tailscale</td>
+<td>✅ Entra sin contraseña</td>
+</tr>
+<tr>
+<td>Contraseña por Tailscale</td>
+<td>❌ <code>Permission denied (publickey)</code></td>
+</tr>
+<tr>
+<td>Contraseña desde la LAN (emergencia)</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>root con contraseña</td>
+<td>❌ Rechazado</td>
+</tr>
+</tbody>
+</table>
+<p>Rescate:</p>
+<pre><code class="language-bash">sudo mv /etc/ssh/sshd_config.d/00-leandro-hardening.conf /etc/ssh/00-leandro-hardening.conf.desactivado &amp;&amp; sudo systemctl reload ssh
+</code></pre></section><section id="seguridad"><h1>Seguridad</h1>
+<h2>Línea base (Etapa 1)</h2>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Estado</th>
+<th>Riesgo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SSH <code>PermitRootLogin</code></td>
+<td><code>no</code></td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>SSH <code>PasswordAuthentication</code></td>
+<td><code>no</code> (sí solo desde 192.168.1.0/24)</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>SSH con llaves</td>
+<td>ed25519 del ASUS</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>Firewall</td>
+<td>UFW activo y habilitado al arranque (<code>systemctl enable ufw</code>)</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>Acceso remoto</td>
+<td>Tailscale, sin puertos abiertos en el router</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>MQTT anónimo</td>
+<td><code>allow_anonymous false</code> + <code>password_file</code></td>
+<td>🟢 Correcto</td>
+</tr>
+<tr>
+<td>MQTT usuarios/ACL</td>
+<td>Un usuario por cliente + ACL por tópico (leandro, nodered, esp32-habitacion)</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>MQTT cifrado (TLS)</td>
+<td>No</td>
+<td>🟡 Bajo en LAN/VPN</td>
+</tr>
+<tr>
+<td>Node-RED <code>adminAuth</code></td>
+<td>Activo (401 sin sesión)</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>Node-RED Dashboard</td>
+<td>Sin contraseña (decisión del usuario). Expuesto solo a la LAN y a Tailscale</td>
+<td>🟡 Aceptado</td>
+</tr>
+<tr>
+<td>Node-RED <code>credentialSecret</code></td>
+<td>Definido; <code>flows_cred.json</code> cifrado</td>
+<td>🟢</td>
+</tr>
+<tr>
+<td>Usuarios con shell</td>
+<td><code>root</code>, <code>leandro</code> (UID 1000)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Imagen del sistema</td>
+<td>Armbian <strong>nightly/trunk</strong></td>
+<td>🟢 Kernel/arranque congelados</td>
+</tr>
+<tr>
+<td>Samba</td>
+<td>SMB3, sin invitados, <code>hosts allow</code> LAN+Tailscale</td>
+<td>🟢 Correcto</td>
+</tr>
+</tbody>
+</table>
+<h2>Plan de endurecimiento</h2>
+<ol>
+<li>Llaves SSH desde Windows → desactivar el login de root → desactivar las contraseñas (siempre con una sesión abierta de respaldo).</li>
+<li>Instalar UFW: permitir 22, 1880, 1883 y Samba solo desde la LAN y Tailscale.</li>
+<li>Verificar <code>adminAuth</code> y definir <code>credentialSecret</code> en Node-RED.</li>
+<li>Acceso remoto solo por Tailscale, sin abrir puertos en el router.</li>
+<li>Congelar las actualizaciones de kernel/bootloader de la imagen nightly mientras el servidor esté sin supervisión.</li>
+</ol>
+<h2>Paquetes congelados (<code>apt-mark hold</code>, 2026-11-13)</h2>
+<p>Provienen del repositorio beta de Armbian. Se congelan para que <code>apt upgrade</code> no cambie el arranque:</p>
+<pre><code>linux-image-current-sunxi
+linux-dtb-current-sunxi
+linux-u-boot-orangepipcplus-current
+armbian-firmware
+armbian-bsp-cli-orangepipcplus-current
+</code></pre>
+<p>Consultar: <code>apt-mark showhold</code> · Liberar: <code>sudo apt-mark unhold &lt;paquete&gt;</code></p></section><section id="backups"><h1>Copias de seguridad (Etapa 9)</h1>
+<h2>Componentes</h2>
+<table>
+<thead>
+<tr>
+<th>Elemento</th>
+<th>Ubicación</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Script</td>
+<td><code>/usr/local/sbin/backup-servidor.sh</code> (root, 750) · copia en <a href="#archivos"><code>scripts/</code></a></td>
+</tr>
+<tr>
+<td>Servicio</td>
+<td><code>/etc/systemd/system/backup-servidor.service</code></td>
+</tr>
+<tr>
+<td>Temporizador</td>
+<td><code>/etc/systemd/system/backup-servidor.timer</code> (diario 03:15–03:20, <code>Persistent=true</code>)</td>
+</tr>
+<tr>
+<td>Destino</td>
+<td><code>/srv/servidor/backups/{diario,semanal,mensual}/AAAA-MM-DD/</code></td>
+</tr>
+<tr>
+<td>Registro</td>
+<td><code>/srv/servidor/registros/backup.log</code> y <code>journalctl -u backup-servidor</code></td>
+</tr>
+</tbody>
+</table>
+<h2>Contenido de cada copia</h2>
+<table>
+<thead>
+<tr>
+<th>Archivo</th>
+<th>Contenido</th>
+<th>Permisos</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>etc.tar.gz</code></td>
+<td><code>/etc</code> completo (Mosquitto, Samba, SSH, UFW, fstab, systemd, apt...)</td>
+<td>600 root (incluye <code>/etc/shadow</code>)</td>
+</tr>
+<tr>
+<td><code>nodered.tar.gz</code></td>
+<td><code>~/.node-red</code> sin <code>node_modules</code></td>
+<td>640 root:leandro</td>
+</tr>
+<tr>
+<td><code>domotica.db.gz</code></td>
+<td>SQLite (<code>.backup</code>, copia consistente)</td>
+<td>640</td>
+</tr>
+<tr>
+<td><code>mosquitto.db</code></td>
+<td>Persistencia MQTT</td>
+<td>640</td>
+</tr>
+<tr>
+<td><code>scripts.tar.gz</code></td>
+<td><code>/usr/local/bin</code> y <code>/usr/local/sbin</code></td>
+<td>640</td>
+</tr>
+<tr>
+<td><code>paquetes.txt</code>, <code>paquetes-congelados.txt</code></td>
+<td><code>dpkg --get-selections</code>, <code>apt-mark showhold</code></td>
+<td>640</td>
+</tr>
+<tr>
+<td><code>SHA256SUMS</code></td>
+<td>Sumas de verificación</td>
+<td>640</td>
+</tr>
+</tbody>
+</table>
+<p>Tamaño de la primera copia (2026-11-13): <strong>516 KB</strong>.</p>
+<h2>Rotación</h2>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>Cuándo</th>
+<th>Se conservan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>diario</td>
+<td>Todos los días</td>
+<td>7</td>
+</tr>
+<tr>
+<td>semanal</td>
+<td>Domingos</td>
+<td>4</td>
+</tr>
+<tr>
+<td>mensual</td>
+<td>Día 1</td>
+<td>6</td>
+</tr>
+</tbody>
+</table>
+<p>La rotación solo elimina carpetas <code>AAAA-MM-DD</code> dentro de esas tres carpetas. Si el HDD no está montado, el backup se cancela.</p>
+<h2>Operación</h2>
+<pre><code class="language-bash">sudo systemctl start backup-servidor.service      # backup manual (vía systemd)
+systemctl list-timers backup-servidor.timer       # próxima ejecución
+journalctl -u backup-servidor -n 30 --no-pager    # resultado de la última ejecución
+tail -20 /srv/servidor/registros/backup.log
+cd /srv/servidor/backups/diario/AAAA-MM-DD &amp;&amp; sudo sha256sum -c SHA256SUMS
+</code></pre>
+<h2>Restauración (ejemplos)</h2>
+<pre><code class="language-bash">B=/srv/servidor/backups/diario/AAAA-MM-DD
+# Base de datos
+sudo systemctl stop nodered
+gunzip -c $B/domotica.db.gz &gt; /srv/servidor/bases_datos/domotica.db
+sudo systemctl start nodered
+# Node-RED (requiere la credentialSecret guardada aparte)
+sudo systemctl stop nodered
+tar -xzf $B/nodered.tar.gz -C /home/leandro &amp;&amp; cd ~/.node-red &amp;&amp; npm install
+sudo systemctl start nodered
+# Un archivo de /etc (ejemplo: ACL de Mosquitto) sin pisar todo /etc
+sudo tar -xzf $B/etc.tar.gz -C /tmp etc/mosquitto/acl &amp;&amp; sudo cp /tmp/etc/mosquitto/acl /etc/mosquitto/acl
+</code></pre>
+<h2>Regla 3-2-1 (pendiente del usuario)</h2>
+<p>Las copias están en el <strong>mismo HDD</strong> que los datos. Si el disco falla, se pierden ambos.
+Recomendación: copiar periódicamente <code>\\leandro-home-server\backups</code> (solo lectura por Samba) al ASUS o a una memoria externa.</p></section><section id="esp32"><h1>Integración ESP32 (Etapa 10)</h1>
+<h2>Dispositivo: <code>esp32-habitacion</code></h2>
+<table>
+<thead>
+<tr>
+<th>Elemento</th>
+<th>Valor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Placa</td>
+<td>ESP32 DevKit V1 (ESP32-WROOM-32), 240 MHz, 2 núcleos</td>
+</tr>
+<tr>
+<td>Sensor</td>
+<td><strong>DHT11</strong> en G4 (precisión ±2 °C / ±5 % HR; el DHT22 sería más preciso)</td>
+</tr>
+<tr>
+<td>Pantalla</td>
+<td>OLED SSD1306 128x64, I2C 0x3C (SDA G21, SCL G22)</td>
+</tr>
+<tr>
+<td>Relé</td>
+<td>G26, activo en HIGH, circuito conmutado (3 vías)</td>
+</tr>
+<tr>
+<td>Integraciones</td>
+<td>MQTT (Orange Pi), Google Home (Sinric Pro), Telegram, OTA (<code>domotica-habitacion</code>)</td>
+</tr>
+<tr>
+<td>Firmware</td>
+<td><code>esp32_domotica_habitacion.ino</code> v3</td>
+</tr>
+</tbody>
+</table>
+<h2>MQTT</h2>
+<table>
+<thead>
+<tr>
+<th>Tópico</th>
+<th>Dirección</th>
+<th>Contenido</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>domotica/habitacion/estado</code></td>
+<td>ESP32 → servidor, cada 10 s</td>
+<td>JSON: temp, hum, cpu_mhz, cpu0, cpu1, heap_libre, heap_min, heap_total, rssi, luz, uptime</td>
+</tr>
+<tr>
+<td><code>domotica/habitacion/conexion</code></td>
+<td>ESP32 / broker (LWT), retenido</td>
+<td><code>online</code> al conectar · <code>offline</code> si desaparece (unos 22 s, keepalive 15 s × 1,5)</td>
+</tr>
+<tr>
+<td><code>domotica/habitacion/luz/set</code></td>
+<td>servidor → ESP32</td>
+<td><code>ON</code> / <code>OFF</code> / <code>TOGGLE</code></td>
+</tr>
+</tbody>
+</table>
+<p>Conexión: usuario <code>esp32-habitacion</code>, client-id <code>esp32-habitacion</code>, keepalive 15 s, LWT QoS 1 retenido.</p>
+<pre><code class="language-cpp">mqtt.connect(&quot;esp32-habitacion&quot;, MQTT_USUARIO, MQTT_CLAVE,
+             MQTT_TEMA_CONEXION, 1, true, &quot;offline&quot;);
+mqtt.publish(MQTT_TEMA_CONEXION, &quot;online&quot;, true);
+</code></pre>
+<h2>Node-RED</h2>
+<ul>
+<li>Flujo <a href="#archivos"><code>flujo-conexion-esp32.json</code></a>: <code>mqtt in conexion</code> → "Indicador + evento" → texto <strong>ESP32 🟢/🔴</strong> en el grupo <em>Sistema ESP32</em>; cada cambio se registra en <code>eventos</code> (SQLite).</li>
+</ul>
+<h2>Pruebas (2026-11-13)</h2>
+<table>
+<thead>
+<tr>
+<th>Prueba</th>
+<th>Resultado</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Conexión con el usuario nuevo</td>
+<td>✅ <code>online</code> + datos de estado</td>
+</tr>
+<tr>
+<td>Desconectar la alimentación</td>
+<td>✅ <code>offline</code> publicado por Mosquitto (LWT)</td>
+</tr>
+<tr>
+<td>Usuario compartido <code>esp32</code></td>
+<td>✅ Eliminado de <code>passwd</code> y de la ACL</td>
+</tr>
+<tr>
+<td>Indicador en el dashboard</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h2>Plantilla para un ESP32 nuevo (ej. <code>esp32-sala</code>)</h2>
+<ol>
+<li>Servidor:
+   ```bash
+   sudo mosquitto_passwd /etc/mosquitto/passwd esp32-sala
+   sudo tee -a /etc/mosquitto/acl &gt; /dev/null &lt;&lt;'FIN'</li>
+</ol>
+<p>user esp32-sala
+   topic write domotica/sala/estado
+   topic write domotica/sala/conexion
+   topic read domotica/sala/+/set
+   FIN
+   sudo systemctl reload mosquitto
+   sqlite3 /srv/servidor/bases_datos/domotica.db "INSERT INTO dispositivos (id, zona, descripcion) VALUES ('esp32-sala','sala','...');"
+   <code>``
+2. Firmware: cambiar</code>MQTT_USUARIO<code>, client-id, tópicos (</code>domotica/sala/...<code>) y</code>OTA_NOMBRE`.
+3. Node-RED: duplicar los flujos de la habitación cambiando los tópicos y el nombre del dispositivo en "Guardar historial".</p>
+<h2>Pendientes recomendados</h2>
+<ul>
+<li>Rotar el token de Telegram (@BotFather <code>/revoke</code>) y las credenciales de Sinric Pro (se compartieron en texto).</li>
+<li>Cambiar <code>OTA_CLAVE</code> por una clave propia.</li>
+<li>Reservar la IP 192.168.1.9 para la Orange Pi en el router (el firmware la usa fija).</li>
+<li>Valorar el cambio de DHT11 a DHT22 (cambiar <code>DHT_TYPE</code> a <code>DHT22</code>).</li>
+</ul></section><section id="mantenimiento"><h1>Mantenimiento</h1>
+<h2>Comandos de verificación rápida</h2>
+<pre><code class="language-bash">uptime &amp;&amp; free -h                                   # carga y memoria
+cat /sys/class/thermal/thermal_zone0/temp           # temperatura (m°C)
+df -hT -x tmpfs -x devtmpfs                         # espacio en disco
+systemctl status mosquitto nodered --no-pager       # servicios
+sudo ss -tulpn                                      # puertos abiertos
+journalctl -p err -b --no-pager | tail -30          # errores desde el arranque
+</code></pre>
+<h2>Diagnóstico completo</h2>
+<pre><code class="language-bash">sudo bash ~/diagnostico_etapa1.sh 2&gt;&amp;1 | tee ~/diagnostico_$(date +%F).txt
+# auditoría rápida de todos los servicios:
+bash verificacion-final.sh   # ver scripts/
+</code></pre>
+<h2>Copias de seguridad</h2>
+<p>Automáticas a diario a las 03:15. Ver <a href="#backups">backups.md</a>.</p>
+<h2>Notas</h2>
+<ul>
+<li><code>/var/log</code> está en RAM (log2ram, 50 MB). Los registros grandes, como los de Mosquitto o el histórico, deben ir al HDD (<code>/srv/servidor/registros</code>).</li>
+<li>La imagen es nightly: antes de un <code>apt full-upgrade</code>, revisar qué paquetes de kernel y bootloader se van a actualizar.</li>
+</ul>
+<h2>Bitácora</h2>
+<table>
+<thead>
+<tr>
+<th>Fecha</th>
+<th>Etapa</th>
+<th>Acción</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-11-13</td>
+<td>1</td>
+<td>Diagnóstico completo del servidor</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>2</td>
+<td>HDD reformateado a ext4 (1 partición), montaje por UUID en <code>/srv/servidor</code>, estructura de carpetas, prueba de reinicio OK</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>3</td>
+<td>Congelados kernel/u-boot/firmware/bsp (apt-mark hold). Samba 4.22.11 instalado: recursos archivos, compartido, backups (ro). SMB3_11 verificado</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>4</td>
+<td>Mosquitto: usuarios leandro/nodered/esp32-habitacion, ACL, passwd root:mosquitto 640, timestamps legibles. Pruebas de ACL OK</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>5</td>
+<td>Node-RED: credentialSecret, httpNodeAuth en el dashboard, broker MQTT con usuario nodered. Respaldo en backups/nodered-20261113.tar.gz</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>6</td>
+<td>SQLite: domotica.db (4 tablas), node:sqlite en functionGlobalContext, flujo 'Guardar historial' (promedio cada 60 s)</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>7</td>
+<td>estado-servidor.sh + página Servidor en el Dashboard + MQTT domotica/servidor/estado</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>8</td>
+<td>Tailscale 1.104.7 (leandro-home-server, 100.76.238.119), UFW activo con red de seguridad systemd-run</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>8</td>
+<td>SSH: llave ed25519, root deshabilitado, contraseña solo en la LAN. Etapa 8 cerrada</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>9</td>
+<td>backup-servidor.sh + timer systemd 03:15; rotación 7/4/6; primera copia 516 KB OK</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>10</td>
+<td>ESP32 con usuario esp32-habitacion + LWT; usuario esp32 eliminado; indicador 🟢/🔴 en el dashboard</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>11</td>
+<td>Auditoría final OK. ufw habilitado al arranque. Dashboard sin contraseña por decisión del usuario. Proyecto cerrado</td>
+</tr>
+<tr>
+<td>2026-11-13</td>
+<td>Extra</td>
+<td>Taildrop: servicio taildrop-recibir → archivos/Taildrop; operator=leandro; libheif-examples y webp instalados; cámara del celular en JPG</td>
+</tr>
+</tbody>
+</table></section><section id="archivos"><h1>Archivos de configuración y scripts</h1><p>Copias de referencia. Los originales están en <code>configuraciones/</code> y <code>scripts/</code>.</p><details><summary><code>scripts/backup-servidor.sh</code></summary><pre><code>#!/bin/bash
+# ============================================================
+# LEANDRO HOME SERVER - Copia de seguridad diaria
+# Ubicación: /usr/local/sbin/backup-servidor.sh (se ejecuta como root)
+# Lo lanza: backup-servidor.timer (todos los días 03:15)
+# ============================================================
+set -uo pipefail
+export LC_ALL=C
+
+DESTINO=/srv/servidor/backups
+LOG=/srv/servidor/registros/backup.log
+NODERED=/home/leandro/.node-red
+BD=/srv/servidor/bases_datos/domotica.db
+GUARDAR_DIARIAS=7
+GUARDAR_SEMANALES=4
+GUARDAR_MENSUALES=6
+
+HOY=$(date +%F)
+DIR=&quot;$DESTINO/diario/$HOY&quot;
+FALLOS=0
+
+log()  { echo &quot;$(date &#x27;+%F %T&#x27;) $*&quot; | tee -a &quot;$LOG&quot;; }
+paso() {
+  local desc=$1; shift
+  if &quot;$@&quot;; then log &quot;  OK    $desc&quot;; else log &quot;  ERROR $desc&quot;; FALLOS=$((FALLOS+1)); fi
+}
+
+# 0. Si el HDD no está montado, NO escribir en la microSD
+if ! mountpoint -q /srv/servidor; then
+  echo &quot;HDD no montado en /srv/servidor: backup cancelado&quot; &gt;&amp;2
+  exit 1
+fi
+
+mkdir -p &quot;$DIR&quot; &quot;$DESTINO/semanal&quot; &quot;$DESTINO/mensual&quot;
+log &quot;=== Inicio backup $HOY ===&quot;
+
+# 1. Configuración del sistema (/etc completo)
+paso &quot;etc.tar.gz&quot;      tar --warning=no-file-changed -czf &quot;$DIR/etc.tar.gz&quot; -C / etc
+chmod 600 &quot;$DIR/etc.tar.gz&quot; 2&gt;/dev/null
+
+# 2. Node-RED (sin node_modules)
+paso &quot;nodered.tar.gz&quot;  tar --exclude=node_modules -czf &quot;$DIR/nodered.tar.gz&quot; -C &quot;$(dirname &quot;$NODERED&quot;)&quot; &quot;$(basename &quot;$NODERED&quot;)&quot;
+
+# 3. Base de datos (copia consistente)
+paso &quot;domotica.db&quot;     sqlite3 &quot;$BD&quot; &quot;.backup &#x27;$DIR/domotica.db&#x27;&quot;
+paso &quot;domotica.db.gz&quot;  gzip -f &quot;$DIR/domotica.db&quot;
+
+# 4. Persistencia de Mosquitto
+paso &quot;mosquitto.db&quot;    cp -p /var/lib/mosquitto/mosquitto.db &quot;$DIR/mosquitto.db&quot;
+
+# 5. Scripts propios
+paso &quot;scripts.tar.gz&quot;  tar -czf &quot;$DIR/scripts.tar.gz&quot; -C / usr/local/bin usr/local/sbin
+
+# 6. Inventario de paquetes
+paso &quot;paquetes.txt&quot;    sh -c &quot;dpkg --get-selections &gt; &#x27;$DIR/paquetes.txt&#x27;&quot;
+paso &quot;congelados.txt&quot;  sh -c &quot;apt-mark showhold &gt; &#x27;$DIR/paquetes-congelados.txt&#x27;&quot;
+
+# 7. Sumas de verificación
+paso &quot;SHA256SUMS&quot;      sh -c &quot;cd &#x27;$DIR&#x27; &amp;&amp; sha256sum *.gz *.db *.txt &gt; SHA256SUMS&quot;
+
+# 8. Semanal (domingo) y mensual (día 1)
+if [ &quot;$(date +%u)&quot; = &quot;7&quot; ];  then paso &quot;copia semanal&quot; cp -a &quot;$DIR&quot; &quot;$DESTINO/semanal/$HOY&quot;; fi
+if [ &quot;$(date +%d)&quot; = &quot;01&quot; ]; then paso &quot;copia mensual&quot; cp -a &quot;$DIR&quot; &quot;$DESTINO/mensual/$HOY&quot;; fi
+
+# 9. Rotación: conservar solo las N copias más recientes
+rotar() {
+  local carpeta=$1 n=$2 d
+  find &quot;$carpeta&quot; -mindepth 1 -maxdepth 1 -type d -name &#x27;20??-??-??&#x27; | sort | head -n -&quot;$n&quot; |
+  while read -r d; do rm -rf -- &quot;$d&quot; &amp;&amp; log &quot;  Rotación: eliminada $d&quot;; done
+}
+rotar &quot;$DESTINO/diario&quot;  &quot;$GUARDAR_DIARIAS&quot;
+rotar &quot;$DESTINO/semanal&quot; &quot;$GUARDAR_SEMANALES&quot;
+rotar &quot;$DESTINO/mensual&quot; &quot;$GUARDAR_MENSUALES&quot;
+
+# 10. Permisos: leandro puede leer, solo root escribe
+chown -R root:leandro &quot;$DESTINO/diario&quot; &quot;$DESTINO/semanal&quot; &quot;$DESTINO/mensual&quot;
+find &quot;$DESTINO/diario&quot; &quot;$DESTINO/semanal&quot; &quot;$DESTINO/mensual&quot; -type d -exec chmod 750 {} +
+find &quot;$DESTINO/diario&quot; &quot;$DESTINO/semanal&quot; &quot;$DESTINO/mensual&quot; -type f ! -name &#x27;etc.tar.gz&#x27; -exec chmod 640 {} +
+
+TAM=$(du -sh &quot;$DIR&quot; | cut -f1)
+LIBRE=$(df -h --output=avail /srv/servidor | tail -1 | tr -d &#x27; &#x27;)
+if [ &quot;$FALLOS&quot; -eq 0 ]; then
+  log &quot;=== Backup OK: $DIR ($TAM) · libre en HDD: $LIBRE ===&quot;
+  exit 0
+else
+  log &quot;=== Backup con $FALLOS ERROR(ES): revisar $LOG ===&quot;
+  exit 1
+fi
+</code></pre></details><details><summary><code>scripts/diagnostico_etapa1.sh</code></summary><pre><code>#!/bin/bash
+# LEANDRO HOME SERVER - Etapa 1: Diagnóstico (SOLO LECTURA)
+sec(){ echo; echo &quot;==================== $1 ====================&quot;; }
+sec &quot;FECHA Y HOST&quot;;            date; hostnamectl
+sec &quot;ARMBIAN / SISTEMA&quot;;       cat /etc/armbian-release 2&gt;/dev/null; cat /etc/os-release; uname -a
+sec &quot;CPU&quot;;                     lscpu; grep -m1 -i hardware /proc/cpuinfo
+sec &quot;TEMPERATURA CPU (m°C)&quot;;   cat /sys/class/thermal/thermal_zone*/temp
+sec &quot;MEMORIA Y SWAP/ZRAM&quot;;     free -h; swapon --show
+sec &quot;CARGA Y PROCESOS&quot;;        uptime; top -bn1 -o %MEM | head -20
+sec &quot;DISCOS&quot;;                  lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,UUID,MOUNTPOINT,MODEL
+sec &quot;BLKID&quot;;                   blkid
+sec &quot;USO DE ESPACIO&quot;;          df -hT -x tmpfs -x devtmpfs
+sec &quot;FSTAB&quot;;                   cat /etc/fstab
+sec &quot;DISPOSITIVOS USB&quot;;        lsusb
+sec &quot;KERNEL - DISCO USB&quot;;      dmesg | grep -iE &quot;sd[a-z]|uas|usb-storage|I/O error|reset&quot; | tail -40
+sec &quot;RED - INTERFACES&quot;;        ip -br addr; ip route; nmcli dev status 2&gt;/dev/null
+sec &quot;RED - DNS E INTERNET&quot;;    cat /etc/resolv.conf; ping -c 3 1.1.1.1; ping -c 2 google.com
+sec &quot;PUERTOS ESCUCHANDO&quot;;      ss -tulpn
+sec &quot;SERVICIOS ACTIVOS&quot;;       systemctl list-units --type=service --state=running --no-pager
+sec &quot;SERVICIOS FALLIDOS&quot;;      systemctl --failed --no-pager
+sec &quot;MOSQUITTO - ESTADO&quot;;      systemctl status mosquitto --no-pager -l | head -20; mosquitto -h 2&gt;&amp;1 | head -1
+sec &quot;MOSQUITTO - CONFIG&quot;;      for f in /etc/mosquitto/mosquitto.conf /etc/mosquitto/conf.d/*.conf; do echo &quot;--- $f&quot;; grep -vE &#x27;^\s*(#|$)&#x27; &quot;$f&quot; 2&gt;/dev/null; done
+sec &quot;NODE-RED - ESTADO&quot;;       systemctl list-unit-files --no-pager | grep -iE &quot;node|red&quot;; systemctl status nodered --no-pager -l | head -20; node -v; npm -v
+sec &quot;NODE-RED - SEGURIDAD&quot;;    grep -n &quot;adminAuth&quot; /home/*/.node-red/settings.js /root/.node-red/settings.js 2&gt;/dev/null
+sec &quot;USUARIOS CON SHELL&quot;;      grep -E &#x27;/(bash|sh|zsh)$&#x27; /etc/passwd | cut -d: -f1,3,6
+sec &quot;SSH - CONFIG EFECTIVA&quot;;   sshd -T | grep -iE &quot;^(port|permitrootlogin|passwordauthentication|pubkeyauthentication)&quot;
+sec &quot;FIREWALL&quot;;                command -v ufw &gt;/dev/null &amp;&amp; ufw status verbose || echo &quot;UFW no instalado&quot;
+sec &quot;ACTUALIZACIONES PEND.&quot;;   apt list --upgradable 2&gt;/dev/null | head -30
+sec &quot;ERRORES DEL KERNEL&quot;;      dmesg -l err,crit,alert,emerg | tail -30
+echo; echo &quot;=== FIN DEL DIAGNÓSTICO ===&quot;
+</code></pre></details><details><summary><code>scripts/estado-servidor.sh</code></summary><pre><code>#!/bin/bash
+# LEANDRO HOME SERVER - Estado del servidor en JSON (solo lectura)
+export LC_ALL=C   # punto decimal (no coma) aunque el sistema esté en español
+# Ubicación: /usr/local/bin/estado-servidor.sh   · Lo usa Node-RED (nodo exec)
+
+# CPU: dos muestras de /proc/stat separadas 1 s
+read -r _ u1 n1 s1 i1 w1 x1 y1 z1 _ &lt; /proc/stat
+sleep 1
+read -r _ u2 n2 s2 i2 w2 x2 y2 z2 _ &lt; /proc/stat
+total=$(( (u2+n2+s2+i2+w2+x2+y2+z2) - (u1+n1+s1+i1+w1+x1+y1+z1) ))
+idle=$(( (i2+w2) - (i1+w1) ))
+cpu=$(( total &gt; 0 ? 100 * (total - idle) / total : 0 ))
+
+temp=$(awk &#x27;{printf &quot;%.1f&quot;, $1/1000}&#x27; /sys/class/thermal/thermal_zone0/temp)
+read -r mem_total mem_disp &lt; &lt;(awk &#x27;/^MemTotal/{t=$2} /^MemAvailable/{a=$2} END{print int(t/1024), int(a/1024)}&#x27; /proc/meminfo)
+ram=$(( 100 * (mem_total - mem_disp) / mem_total ))
+load=$(cut -d&#x27; &#x27; -f1 /proc/loadavg)
+uptime_s=$(cut -d. -f1 /proc/uptime)
+sd_uso=$(df --output=pcent / | tail -1 | tr -dc &#x27;0-9&#x27;)
+
+if mountpoint -q /srv/servidor; then
+  hdd_montado=true
+  hdd_uso=$(df --output=pcent /srv/servidor | tail -1 | tr -dc &#x27;0-9&#x27;)
+  hdd_libre=$(df -BG --output=avail /srv/servidor | tail -1 | tr -dc &#x27;0-9&#x27;)
+else
+  hdd_montado=false; hdd_uso=null; hdd_libre=null
+fi
+
+svc() { systemctl is-active --quiet &quot;$1&quot; 2&gt;/dev/null &amp;&amp; echo true || echo false; }
+
+printf &#x27;{&quot;cpu&quot;:%s,&quot;temp&quot;:%s,&quot;ram&quot;:%s,&quot;ram_total_mb&quot;:%s,&quot;ram_disp_mb&quot;:%s,&quot;load&quot;:%s,&quot;uptime&quot;:%s,&quot;sd_uso&quot;:%s,&quot;hdd_montado&quot;:%s,&quot;hdd_uso&quot;:%s,&quot;hdd_libre_gb&quot;:%s,&quot;mosquitto&quot;:%s,&quot;nodered&quot;:%s,&quot;samba&quot;:%s}\n&#x27; \
+  &quot;$cpu&quot; &quot;$temp&quot; &quot;$ram&quot; &quot;$mem_total&quot; &quot;$mem_disp&quot; &quot;$load&quot; &quot;$uptime_s&quot; &quot;$sd_uso&quot; \
+  &quot;$hdd_montado&quot; &quot;$hdd_uso&quot; &quot;$hdd_libre&quot; &quot;$(svc mosquitto)&quot; &quot;$(svc nodered)&quot; &quot;$(svc smbd)&quot;
+</code></pre></details><details><summary><code>scripts/verificacion-final.sh</code></summary><pre><code>#!/bin/bash
+# LEANDRO HOME SERVER - Auditoría rápida (solo lectura). Uso: bash verificacion-final.sh
+echo &quot;===== LEANDRO HOME SERVER · VERIFICACIÓN =====&quot;; date
+echo; echo &quot;--- Servicios ---&quot;; for s in ssh mosquitto nodered smbd tailscaled ufw taildrop-recibir backup-servidor.timer; do printf &quot;%-24s %s\n&quot; &quot;$s&quot; &quot;$(systemctl is-active $s)&quot;; done
+echo; echo &quot;--- HDD ---&quot;; findmnt -no SOURCE,TARGET,OPTIONS /srv/servidor; df -h /srv/servidor | tail -1
+echo; echo &quot;--- Recursos ---&quot;; free -h | head -2; echo &quot;Temp CPU: $(awk &#x27;{printf &quot;%.1f °C&quot;, $1/1000}&#x27; /sys/class/thermal/thermal_zone0/temp)&quot;; uptime
+echo; echo &quot;--- Firewall ---&quot;; sudo ufw status | head -12
+echo; echo &quot;--- Tailscale ---&quot;; tailscale ip -4; tailscale status | head -5
+echo; echo &quot;--- Node-RED ---&quot;; for u in /flows /dashboard/; do printf &quot;%-12s %s\n&quot; &quot;$u&quot; &quot;$(curl -s -o /dev/null -w &#x27;%{http_code}&#x27; http://localhost:1880$u)&quot;; done
+echo; echo &quot;--- MQTT (usuarios) ---&quot;; sudo cut -d: -f1 /etc/mosquitto/passwd | tr &#x27;\n&#x27; &#x27; &#x27;; echo
+echo; echo &quot;--- Base de datos ---&quot;; sqlite3 /srv/servidor/bases_datos/domotica.db &quot;SELECT &#x27;lecturas&#x27;, count(*) FROM lecturas UNION ALL SELECT &#x27;eventos&#x27;, count(*) FROM eventos UNION ALL SELECT &#x27;reles&#x27;, count(*) FROM estados_rele;&quot;
+echo; echo &quot;--- Backups ---&quot;; systemctl list-timers backup-servidor.timer --no-pager | sed -n 2p; tail -1 /srv/servidor/registros/backup.log
+echo; echo &quot;--- Paquetes congelados ---&quot;; apt-mark showhold | tr &#x27;\n&#x27; &#x27; &#x27;; echo
+echo; echo &quot;--- SSH ---&quot;; sudo sshd -T | grep -E &quot;^(permitrootlogin|passwordauthentication) &quot;
+echo &quot;===== FIN =====&quot;
+</code></pre></details><details><summary><code>configuraciones/00-leandro-hardening.conf</code></summary><pre><code># /etc/ssh/sshd_config.d/00-leandro-hardening.conf
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+MaxAuthTries 4
+LoginGraceTime 30
+X11Forwarding no
+
+# Acceso de emergencia: contraseña SOLO desde la red de casa
+Match Address 192.168.1.0/24
+    PasswordAuthentication yes
+</code></pre></details><details><summary><code>configuraciones/backup-servidor.service</code></summary><pre><code># /etc/systemd/system/backup-servidor.service
+[Unit]
+Description=LEANDRO HOME SERVER - copia de seguridad diaria
+RequiresMountsFor=/srv/servidor
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/backup-servidor.sh
+Nice=10
+IOSchedulingClass=idle
+</code></pre></details><details><summary><code>configuraciones/backup-servidor.timer</code></summary><pre><code># /etc/systemd/system/backup-servidor.timer
+[Unit]
+Description=Backup diario a las 03:15
+
+[Timer]
+OnCalendar=*-*-* 03:15
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target
+</code></pre></details><h3>configuraciones/esp32_domotica_habitacion.ino.txt</h3><p>Firmware del ESP32 (contraseñas ocultas). Ver <code>configuraciones/esp32_domotica_habitacion.ino.txt</code>.</p><details><summary><code>configuraciones/esquema-domotica.sql</code></summary><pre><code>-- LEANDRO HOME SERVER - Esquema SQLite
+-- Archivo: /srv/servidor/bases_datos/domotica.db  (dueño leandro)
+PRAGMA journal_mode=WAL;
+
+CREATE TABLE IF NOT EXISTS dispositivos (
+  id              TEXT PRIMARY KEY,
+  zona            TEXT NOT NULL,
+  descripcion     TEXT,
+  creado          TEXT DEFAULT (datetime(&#x27;now&#x27;,&#x27;localtime&#x27;)),
+  ultimo_contacto TEXT
+);
+
+CREATE TABLE IF NOT EXISTS lecturas (
+  id          INTEGER PRIMARY KEY,
+  ts          TEXT NOT NULL DEFAULT (datetime(&#x27;now&#x27;,&#x27;localtime&#x27;)),
+  dispositivo TEXT NOT NULL REFERENCES dispositivos(id),
+  temperatura REAL,
+  humedad     REAL,
+  rssi        INTEGER,
+  heap_libre  INTEGER,
+  uptime      INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_lecturas_disp_ts ON lecturas(dispositivo, ts);
+
+CREATE TABLE IF NOT EXISTS estados_rele (
+  id          INTEGER PRIMARY KEY,
+  ts          TEXT NOT NULL DEFAULT (datetime(&#x27;now&#x27;,&#x27;localtime&#x27;)),
+  dispositivo TEXT NOT NULL REFERENCES dispositivos(id),
+  rele        TEXT NOT NULL,
+  estado      INTEGER NOT NULL,
+  origen      TEXT
+);
+
+CREATE TABLE IF NOT EXISTS eventos (
+  id      INTEGER PRIMARY KEY,
+  ts      TEXT NOT NULL DEFAULT (datetime(&#x27;now&#x27;,&#x27;localtime&#x27;)),
+  nivel   TEXT NOT NULL DEFAULT &#x27;info&#x27;,
+  origen  TEXT,
+  mensaje TEXT NOT NULL
+);
+
+INSERT OR IGNORE INTO dispositivos (id, zona, descripcion)
+VALUES (&#x27;esp32-habitacion&#x27;, &#x27;habitacion&#x27;, &#x27;ESP32 DevKit V1 + DHT22 + OLED + relé de luz&#x27;);
+</code></pre></details><details><summary><code>configuraciones/mosquitto-acl</code></summary><pre><code># /etc/mosquitto/acl  (root:mosquitto 640)  — versión final Etapa 10
+# readwrite = publicar y suscribirse | write = solo publicar | read = solo suscribirse
+
+# Administrador (pruebas y monitorización)
+user leandro
+topic readwrite #
+topic read $SYS/#
+
+# Node-RED: cerebro de la automatización
+user nodered
+topic readwrite domotica/#
+
+# ESP32 de la habitación: solo lo suyo
+user esp32-habitacion
+topic write domotica/habitacion/estado
+topic write domotica/habitacion/conexion
+topic read domotica/habitacion/luz/set
+</code></pre></details><details><summary><code>configuraciones/mosquitto-domotica.conf</code></summary><pre><code># /etc/mosquitto/conf.d/domotica.conf
+listener 1883
+allow_anonymous false
+password_file /etc/mosquitto/passwd
+acl_file /etc/mosquitto/acl
+log_timestamp_format %Y-%m-%d %H:%M:%S
+</code></pre></details><details><summary><code>configuraciones/smb.conf</code></summary><pre><code># ============================================================
+# LEANDRO HOME SERVER - Configuración Samba
+# Ubicación en el servidor: /etc/samba/smb.conf
+# Original respaldado en: /etc/samba/smb.conf.bak-original
+# ============================================================
+[global]
+   workgroup = WORKGROUP
+   server string = Leandro Home Server
+   server role = standalone server
+
+   # Seguridad
+   server min protocol = SMB3
+   map to guest = never
+   restrict anonymous = 2
+   hosts allow = 127.0.0.1 192.168.1.0/24 100.64.0.0/10
+   hosts deny = 0.0.0.0/0
+
+   # Solo SMB moderno (puerto 445), sin NetBIOS
+   disable netbios = yes
+   smb ports = 445
+
+   # Sin impresoras
+   load printers = no
+   printing = bsd
+   printcap name = /dev/null
+   disable spoolss = yes
+
+   # Registros
+   logging = file
+   log file = /var/log/samba/log.%m
+   max log size = 1000
+
+[archivos]
+   comment = Archivos personales
+   path = /srv/servidor/archivos
+   valid users = leandro
+   read only = no
+   create mask = 0644
+   directory mask = 0755
+
+[compartido]
+   comment = Carpeta compartida
+   path = /srv/servidor/compartido
+   valid users = leandro
+   read only = no
+   create mask = 0664
+   directory mask = 0775
+
+[backups]
+   comment = Copias de seguridad (solo lectura)
+   path = /srv/servidor/backups
+   valid users = leandro
+   read only = yes
+</code></pre></details><details><summary><code>configuraciones/taildrop-recibir.service</code></summary><pre><code># /etc/systemd/system/taildrop-recibir.service
+[Unit]
+Description=LEANDRO HOME SERVER - Recibir archivos de Taildrop en /srv/servidor/archivos/Taildrop
+After=tailscaled.service
+Requires=tailscaled.service
+RequiresMountsFor=/srv/servidor
+
+[Service]
+User=leandro
+ExecStartPre=/bin/mkdir -p /srv/servidor/archivos/Taildrop
+ExecStart=/usr/bin/tailscale file get --loop --conflict=rename /srv/servidor/archivos/Taildrop/
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+</code></pre></details><details><summary><code>configuraciones/nodered/flujo-conexion-esp32.json</code></summary><pre><code>[
+  {
+    &quot;id&quot;: &quot;lwt_c1&quot;,
+    &quot;type&quot;: &quot;comment&quot;,
+    &quot;name&quot;: &quot;ETAPA 10 · Estado de conexión del ESP32 (LWT)&quot;,
+    &quot;info&quot;: &quot;Elegir el Server &#x27;Mosquitto local&#x27; en el nodo &#x27;Conexión ESP32&#x27;.&quot;,
+    &quot;x&quot;: 250,
+    &quot;y&quot;: 760,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;lwt_in&quot;,
+    &quot;type&quot;: &quot;mqtt in&quot;,
+    &quot;name&quot;: &quot;Conexión ESP32&quot;,
+    &quot;topic&quot;: &quot;domotica/habitacion/conexion&quot;,
+    &quot;qos&quot;: &quot;1&quot;,
+    &quot;datatype&quot;: &quot;utf8&quot;,
+    &quot;broker&quot;: &quot;&quot;,
+    &quot;nl&quot;: false,
+    &quot;rap&quot;: true,
+    &quot;rh&quot;: 0,
+    &quot;inputs&quot;: 0,
+    &quot;x&quot;: 200,
+    &quot;y&quot;: 820,
+    &quot;wires&quot;: [
+      [
+        &quot;lwt_fn&quot;
+      ]
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;lwt_fn&quot;,
+    &quot;type&quot;: &quot;function&quot;,
+    &quot;name&quot;: &quot;Indicador + evento&quot;,
+    &quot;func&quot;: &quot;// domotica/habitacion/conexion → indicador + evento en SQLite\nconst estado = String(msg.payload).trim().toLowerCase();\nconst online = estado === &#x27;online&#x27;;\n\nnode.status({ fill: online ? &#x27;green&#x27; : &#x27;red&#x27;, shape: &#x27;dot&#x27;, text: estado + &#x27; · &#x27; + new Date().toLocaleTimeString() });\n\n// Registrar el cambio en la tabla eventos (solo si cambia, ignora el retenido repetido)\nif (context.get(&#x27;ultimo&#x27;) !== estado) {\n  context.set(&#x27;ultimo&#x27;, estado);\n  try {\n    const { DatabaseSync } = global.get(&#x27;sqlite&#x27;);\n    const db = new DatabaseSync(&#x27;/srv/servidor/bases_datos/domotica.db&#x27;);\n    db.exec(&#x27;PRAGMA busy_timeout=5000;&#x27;);\n    db.prepare(&#x27;INSERT INTO eventos (nivel, origen, mensaje) VALUES (?, ?, ?)&#x27;)\n      .run(online ? &#x27;info&#x27; : &#x27;warning&#x27;, &#x27;esp32-habitacion&#x27;, online ? &#x27;ESP32 en línea&#x27; : &#x27;ESP32 desconectado (LWT)&#x27;);\n    db.close();\n  } catch (e) {\n    node.error(&#x27;SQLite: &#x27; + e.message);\n  }\n}\n\nmsg.payload = online ? &#x27;🟢 En línea&#x27; : &#x27;🔴 Desconectado&#x27;;\nreturn msg;\n&quot;,
+    &quot;outputs&quot;: 1,
+    &quot;timeout&quot;: 0,
+    &quot;noerr&quot;: 0,
+    &quot;initialize&quot;: &quot;&quot;,
+    &quot;finalize&quot;: &quot;&quot;,
+    &quot;libs&quot;: [],
+    &quot;x&quot;: 420,
+    &quot;y&quot;: 820,
+    &quot;wires&quot;: [
+      [
+        &quot;lwt_txt&quot;
+      ]
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;lwt_txt&quot;,
+    &quot;type&quot;: &quot;ui-text&quot;,
+    &quot;group&quot;: &quot;g3&quot;,
+    &quot;order&quot;: 0,
+    &quot;width&quot;: 0,
+    &quot;height&quot;: 0,
+    &quot;name&quot;: &quot;ESP32 conexión&quot;,
+    &quot;label&quot;: &quot;ESP32&quot;,
+    &quot;format&quot;: &quot;{{msg.payload}}&quot;,
+    &quot;layout&quot;: &quot;row-spread&quot;,
+    &quot;style&quot;: false,
+    &quot;font&quot;: &quot;&quot;,
+    &quot;fontSize&quot;: 16,
+    &quot;color&quot;: &quot;#717171&quot;,
+    &quot;wrapText&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 640,
+    &quot;y&quot;: 820,
+    &quot;wires&quot;: []
+  }
+]</code></pre></details><details><summary><code>configuraciones/nodered/flujo-historial-sqlite.json</code></summary><pre><code>[
+  {
+    &quot;id&quot;: &quot;lhs_c1&quot;,
+    &quot;type&quot;: &quot;comment&quot;,
+    &quot;name&quot;: &quot;ETAPA 6 · Historial en SQLite (/srv/servidor/bases_datos/domotica.db)&quot;,
+    &quot;info&quot;: &quot;Conectar la salida del nodo &#x27;Estado ESP32&#x27; a &#x27;Guardar historial&#x27;.\nGuarda el promedio cada 60 s, los cambios del relé y los eventos de desconexión.&quot;,
+    &quot;x&quot;: 330,
+    &quot;y&quot;: 560,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;lhs_f1&quot;,
+    &quot;type&quot;: &quot;function&quot;,
+    &quot;name&quot;: &quot;Guardar historial&quot;,
+    &quot;func&quot;: &quot;// Recibe el JSON de domotica/habitacion/estado (cada 10 s)\nconst p = msg.payload;\nif (typeof p !== &#x27;object&#x27; || p === null) return null;\n\nconst num = v =&gt; (typeof v === &#x27;number&#x27; &amp;&amp; Number.isFinite(v)) ? v : null;\n\nconst m = context.get(&#x27;muestras&#x27;) || [];\nm.push({\n  temp: num(p.temp),\n  hum: num(p.hum),\n  rssi: num(p.rssi),\n  heap_libre: num(p.heap_libre),\n  uptime: num(p.uptime)\n});\ncontext.set(&#x27;muestras&#x27;, m);\n\n// Registrar el relé solo cuando cambia\nif (typeof p.luz === &#x27;boolean&#x27;) {\n  const anterior = context.get(&#x27;luz&#x27;);\n  if (anterior !== p.luz) {\n    context.set(&#x27;luz&#x27;, p.luz);\n    try {\n      context.get(&#x27;st&#x27;).rele.run(&#x27;esp32-habitacion&#x27;, &#x27;luz&#x27;, p.luz ? 1 : 0, anterior === undefined ? &#x27;inicio&#x27; : &#x27;esp32&#x27;);\n    } catch (e) {\n      node.error(&#x27;SQLite: &#x27; + e.message);\n    }\n  }\n}\nreturn null;\n&quot;,
+    &quot;outputs&quot;: 0,
+    &quot;timeout&quot;: 0,
+    &quot;noerr&quot;: 0,
+    &quot;initialize&quot;: &quot;// LEANDRO HOME SERVER - Etapa 6: abre la BD una sola vez\nconst { DatabaseSync } = global.get(&#x27;sqlite&#x27;);\nconst db = new DatabaseSync(&#x27;/srv/servidor/bases_datos/domotica.db&#x27;);\ndb.exec(&#x27;PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; PRAGMA foreign_keys=ON;&#x27;);\n\nconst DISP = &#x27;esp32-habitacion&#x27;;\nconst st = {\n  lectura:  db.prepare(&#x27;INSERT INTO lecturas (dispositivo, temperatura, humedad, rssi, heap_libre, uptime) VALUES (?, ?, ?, ?, ?, ?)&#x27;),\n  contacto: db.prepare(\&quot;UPDATE dispositivos SET ultimo_contacto = datetime(&#x27;now&#x27;,&#x27;localtime&#x27;) WHERE id = ?\&quot;),\n  rele:     db.prepare(&#x27;INSERT INTO estados_rele (dispositivo, rele, estado, origen) VALUES (?, ?, ?, ?)&#x27;),\n  evento:   db.prepare(&#x27;INSERT INTO eventos (nivel, origen, mensaje) VALUES (?, ?, ?)&#x27;)\n};\n\nconst promedio = (m, k) =&gt; {\n  const v = m.map(x =&gt; x[k]).filter(Number.isFinite);\n  return v.length ? v.reduce((a, b) =&gt; a + b, 0) / v.length : null;\n};\nconst r1 = x =&gt; x === null ? null : Math.round(x * 10) / 10;\n\n// Cada 60 s guarda el promedio de las muestras recibidas\nconst guardar = () =&gt; {\n  try {\n    const m = context.get(&#x27;muestras&#x27;) || [];\n    context.set(&#x27;muestras&#x27;, []);\n    if (m.length === 0) {\n      if (context.get(&#x27;online&#x27;)) {\n        context.set(&#x27;online&#x27;, false);\n        st.evento.run(&#x27;warning&#x27;, DISP, &#x27;Sin datos durante 1 minuto&#x27;);\n      }\n      node.status({ fill: &#x27;red&#x27;, shape: &#x27;ring&#x27;, text: &#x27;sin datos &#x27; + new Date().toLocaleTimeString() });\n      return;\n    }\n    if (!context.get(&#x27;online&#x27;)) {\n      context.set(&#x27;online&#x27;, true);\n      st.evento.run(&#x27;info&#x27;, DISP, &#x27;Vuelve a enviar datos&#x27;);\n    }\n    const ult = m[m.length - 1];\n    const t = r1(promedio(m, &#x27;temp&#x27;));\n    const h = r1(promedio(m, &#x27;hum&#x27;));\n    const r = promedio(m, &#x27;rssi&#x27;);\n    st.lectura.run(DISP, t, h, r === null ? null : Math.round(r), ult.heap_libre, ult.uptime);\n    st.contacto.run(DISP);\n    node.status({ fill: &#x27;green&#x27;, shape: &#x27;dot&#x27;, text: `${t}°C ${h}% · ${m.length} muestras · ${new Date().toLocaleTimeString()}` });\n  } catch (e) {\n    node.error(&#x27;SQLite: &#x27; + e.message);\n  }\n};\n\ncontext.set(&#x27;db&#x27;, db);\ncontext.set(&#x27;st&#x27;, st);\ncontext.set(&#x27;muestras&#x27;, []);\ncontext.set(&#x27;online&#x27;, true);\ncontext.set(&#x27;timer&#x27;, setInterval(guardar, 60000));\nst.evento.run(&#x27;info&#x27;, &#x27;nodered&#x27;, &#x27;Registro de historial iniciado&#x27;);\nnode.status({ fill: &#x27;blue&#x27;, shape: &#x27;ring&#x27;, text: &#x27;BD abierta, esperando datos&#x27; });\n&quot;,
+    &quot;finalize&quot;: &quot;clearInterval(context.get(&#x27;timer&#x27;));\ntry { context.get(&#x27;st&#x27;).evento.run(&#x27;info&#x27;, &#x27;nodered&#x27;, &#x27;Registro de historial detenido&#x27;); } catch (e) {}\ntry { context.get(&#x27;db&#x27;).close(); } catch (e) {}\n&quot;,
+    &quot;libs&quot;: [],
+    &quot;x&quot;: 300,
+    &quot;y&quot;: 620,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;lhs_i1&quot;,
+    &quot;type&quot;: &quot;inject&quot;,
+    &quot;name&quot;: &quot;Consultar BD&quot;,
+    &quot;props&quot;: [],
+    &quot;repeat&quot;: &quot;&quot;,
+    &quot;crontab&quot;: &quot;&quot;,
+    &quot;once&quot;: false,
+    &quot;onceDelay&quot;: 0.1,
+    &quot;topic&quot;: &quot;&quot;,
+    &quot;x&quot;: 290,
+    &quot;y&quot;: 680,
+    &quot;wires&quot;: [
+      [
+        &quot;lhs_f2&quot;
+      ]
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;lhs_f2&quot;,
+    &quot;type&quot;: &quot;function&quot;,
+    &quot;name&quot;: &quot;Últimos registros&quot;,
+    &quot;func&quot;: &quot;// Muestra en Debug lo último guardado (solo lectura)\nconst { DatabaseSync } = global.get(&#x27;sqlite&#x27;);\nconst db = new DatabaseSync(&#x27;/srv/servidor/bases_datos/domotica.db&#x27;, { readOnly: true });\ntry {\n  msg.payload = {\n    lecturas: db.prepare(&#x27;SELECT ts, temperatura, humedad, rssi FROM lecturas ORDER BY id DESC LIMIT 5&#x27;).all(),\n    reles:    db.prepare(&#x27;SELECT ts, rele, estado, origen FROM estados_rele ORDER BY id DESC LIMIT 5&#x27;).all(),\n    eventos:  db.prepare(&#x27;SELECT ts, nivel, origen, mensaje FROM eventos ORDER BY id DESC LIMIT 5&#x27;).all()\n  };\n} finally {\n  db.close();\n}\nreturn msg;\n&quot;,
+    &quot;outputs&quot;: 1,
+    &quot;timeout&quot;: 0,
+    &quot;noerr&quot;: 0,
+    &quot;initialize&quot;: &quot;&quot;,
+    &quot;finalize&quot;: &quot;&quot;,
+    &quot;libs&quot;: [],
+    &quot;x&quot;: 490,
+    &quot;y&quot;: 680,
+    &quot;wires&quot;: [
+      [
+        &quot;lhs_d1&quot;
+      ]
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;lhs_d1&quot;,
+    &quot;type&quot;: &quot;debug&quot;,
+    &quot;name&quot;: &quot;Historial&quot;,
+    &quot;active&quot;: true,
+    &quot;tosidebar&quot;: true,
+    &quot;console&quot;: false,
+    &quot;tostatus&quot;: false,
+    &quot;complete&quot;: &quot;payload&quot;,
+    &quot;targetType&quot;: &quot;msg&quot;,
+    &quot;statusVal&quot;: &quot;&quot;,
+    &quot;statusType&quot;: &quot;auto&quot;,
+    &quot;x&quot;: 680,
+    &quot;y&quot;: 680,
+    &quot;wires&quot;: []
+  }
+]</code></pre></details><details><summary><code>configuraciones/nodered/flujo-monitor-servidor.json</code></summary><pre><code>[
+  {
+    &quot;id&quot;: &quot;srv_tab&quot;,
+    &quot;type&quot;: &quot;tab&quot;,
+    &quot;label&quot;: &quot;Servidor&quot;,
+    &quot;disabled&quot;: false,
+    &quot;info&quot;: &quot;LEANDRO HOME SERVER · Etapa 7: monitorización del servidor&quot;
+  },
+  {
+    &quot;id&quot;: &quot;pg_srv&quot;,
+    &quot;type&quot;: &quot;ui-page&quot;,
+    &quot;name&quot;: &quot;Servidor&quot;,
+    &quot;ui&quot;: &quot;base1&quot;,
+    &quot;path&quot;: &quot;/servidor&quot;,
+    &quot;icon&quot;: &quot;server&quot;,
+    &quot;layout&quot;: &quot;grid&quot;,
+    &quot;theme&quot;: &quot;theme1&quot;,
+    &quot;breakpoints&quot;: [
+      {
+        &quot;name&quot;: &quot;Default&quot;,
+        &quot;px&quot;: &quot;0&quot;,
+        &quot;cols&quot;: &quot;3&quot;
+      },
+      {
+        &quot;name&quot;: &quot;Tablet&quot;,
+        &quot;px&quot;: &quot;576&quot;,
+        &quot;cols&quot;: &quot;6&quot;
+      },
+      {
+        &quot;name&quot;: &quot;Small Desktop&quot;,
+        &quot;px&quot;: &quot;768&quot;,
+        &quot;cols&quot;: &quot;9&quot;
+      },
+      {
+        &quot;name&quot;: &quot;Desktop&quot;,
+        &quot;px&quot;: &quot;1024&quot;,
+        &quot;cols&quot;: &quot;12&quot;
+      }
+    ],
+    &quot;order&quot;: 2,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;visible&quot;: &quot;true&quot;,
+    &quot;disabled&quot;: &quot;false&quot;
+  },
+  {
+    &quot;id&quot;: &quot;grp_rec&quot;,
+    &quot;type&quot;: &quot;ui-group&quot;,
+    &quot;name&quot;: &quot;Recursos&quot;,
+    &quot;page&quot;: &quot;pg_srv&quot;,
+    &quot;width&quot;: &quot;9&quot;,
+    &quot;height&quot;: &quot;1&quot;,
+    &quot;order&quot;: 1,
+    &quot;showTitle&quot;: true,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;visible&quot;: &quot;true&quot;,
+    &quot;disabled&quot;: &quot;false&quot;,
+    &quot;groupType&quot;: &quot;default&quot;
+  },
+  {
+    &quot;id&quot;: &quot;grp_alm&quot;,
+    &quot;type&quot;: &quot;ui-group&quot;,
+    &quot;name&quot;: &quot;Almacenamiento&quot;,
+    &quot;page&quot;: &quot;pg_srv&quot;,
+    &quot;width&quot;: &quot;6&quot;,
+    &quot;height&quot;: &quot;1&quot;,
+    &quot;order&quot;: 2,
+    &quot;showTitle&quot;: true,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;visible&quot;: &quot;true&quot;,
+    &quot;disabled&quot;: &quot;false&quot;,
+    &quot;groupType&quot;: &quot;default&quot;
+  },
+  {
+    &quot;id&quot;: &quot;grp_svc&quot;,
+    &quot;type&quot;: &quot;ui-group&quot;,
+    &quot;name&quot;: &quot;Servicios&quot;,
+    &quot;page&quot;: &quot;pg_srv&quot;,
+    &quot;width&quot;: &quot;6&quot;,
+    &quot;height&quot;: &quot;1&quot;,
+    &quot;order&quot;: 3,
+    &quot;showTitle&quot;: true,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;visible&quot;: &quot;true&quot;,
+    &quot;disabled&quot;: &quot;false&quot;,
+    &quot;groupType&quot;: &quot;default&quot;
+  },
+  {
+    &quot;id&quot;: &quot;srv_c1&quot;,
+    &quot;type&quot;: &quot;comment&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;ETAPA 7 · Estado del servidor cada 30 s → Dashboard /servidor + MQTT domotica/servidor/estado&quot;,
+    &quot;info&quot;: &quot;Script: /usr/local/bin/estado-servidor.sh\nEn &#x27;Publicar estado&#x27; hay que elegir el Server &#x27;Mosquitto local&#x27;.&quot;,
+    &quot;x&quot;: 420,
+    &quot;y&quot;: 40,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;srv_inj&quot;,
+    &quot;type&quot;: &quot;inject&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;Cada 30 s&quot;,
+    &quot;props&quot;: [],
+    &quot;repeat&quot;: &quot;30&quot;,
+    &quot;crontab&quot;: &quot;&quot;,
+    &quot;once&quot;: true,
+    &quot;onceDelay&quot;: &quot;5&quot;,
+    &quot;topic&quot;: &quot;&quot;,
+    &quot;x&quot;: 130,
+    &quot;y&quot;: 120,
+    &quot;wires&quot;: [
+      [
+        &quot;srv_exec&quot;
+      ]
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;srv_exec&quot;,
+    &quot;type&quot;: &quot;exec&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;command&quot;: &quot;/usr/local/bin/estado-servidor.sh&quot;,
+    &quot;addpay&quot;: &quot;&quot;,
+    &quot;append&quot;: &quot;&quot;,
+    &quot;useSpawn&quot;: &quot;false&quot;,
+    &quot;timer&quot;: &quot;10&quot;,
+    &quot;winHide&quot;: false,
+    &quot;oldrc&quot;: false,
+    &quot;name&quot;: &quot;estado-servidor.sh&quot;,
+    &quot;x&quot;: 330,
+    &quot;y&quot;: 120,
+    &quot;wires&quot;: [
+      [
+        &quot;srv_json&quot;
+      ],
+      [],
+      []
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;srv_json&quot;,
+    &quot;type&quot;: &quot;json&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;&quot;,
+    &quot;property&quot;: &quot;payload&quot;,
+    &quot;action&quot;: &quot;obj&quot;,
+    &quot;pretty&quot;: false,
+    &quot;x&quot;: 510,
+    &quot;y&quot;: 120,
+    &quot;wires&quot;: [
+      [
+        &quot;srv_fn&quot;
+      ]
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;srv_fn&quot;,
+    &quot;type&quot;: &quot;function&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;Repartir datos&quot;,
+    &quot;func&quot;: &quot;// Reparte el JSON de estado-servidor.sh a cada widget y a MQTT\nconst e = msg.payload;\nif (typeof e !== &#x27;object&#x27; || e === null) return null;\n\nconst servicio = ok =&gt; ok ? &#x27;🟢 Activo&#x27; : &#x27;🔴 Detenido&#x27;;\nconst s = e.uptime || 0;\nconst d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);\nconst uptime = `${d} d ${h} h ${m} min · carga ${e.load}`;\nconst hdd = e.hdd_montado ? `🟢 Montado · ${e.hdd_libre_gb} GB libres` : &#x27;🔴 NO montado&#x27;;\n\nnode.status({ fill: (e.temp &gt; 75 || !e.hdd_montado) ? &#x27;red&#x27; : &#x27;green&#x27;, shape: &#x27;dot&#x27;,\n              text: `CPU ${e.cpu}% · RAM ${e.ram}% · ${e.temp}°C` });\n\nreturn [\n  { payload: e.cpu },\n  { payload: e.ram },\n  { payload: e.temp },\n  { payload: e.sd_uso },\n  { payload: e.hdd_uso ?? 0 },\n  { payload: hdd },\n  { payload: servicio(e.mosquitto) },\n  { payload: servicio(e.nodered) },\n  { payload: servicio(e.samba) },\n  { payload: uptime },\n  { topic: &#x27;domotica/servidor/estado&#x27;, payload: e, retain: true }\n];\n&quot;,
+    &quot;outputs&quot;: 11,
+    &quot;timeout&quot;: 0,
+    &quot;noerr&quot;: 0,
+    &quot;initialize&quot;: &quot;&quot;,
+    &quot;finalize&quot;: &quot;&quot;,
+    &quot;libs&quot;: [],
+    &quot;x&quot;: 680,
+    &quot;y&quot;: 120,
+    &quot;wires&quot;: [
+      [
+        &quot;g_cpu&quot;
+      ],
+      [
+        &quot;g_ram&quot;
+      ],
+      [
+        &quot;g_temp&quot;
+      ],
+      [
+        &quot;g_sd&quot;
+      ],
+      [
+        &quot;g_hdd&quot;
+      ],
+      [
+        &quot;t_hdd&quot;
+      ],
+      [
+        &quot;t_mq&quot;
+      ],
+      [
+        &quot;t_nr&quot;
+      ],
+      [
+        &quot;t_smb&quot;
+      ],
+      [
+        &quot;t_up&quot;
+      ],
+      [
+        &quot;mq_out&quot;
+      ]
+    ]
+  },
+  {
+    &quot;id&quot;: &quot;g_cpu&quot;,
+    &quot;type&quot;: &quot;ui-gauge&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;CPU&quot;,
+    &quot;group&quot;: &quot;grp_rec&quot;,
+    &quot;order&quot;: 1,
+    &quot;width&quot;: 3,
+    &quot;height&quot;: 3,
+    &quot;gtype&quot;: &quot;gauge-half&quot;,
+    &quot;gstyle&quot;: &quot;needle&quot;,
+    &quot;title&quot;: &quot;CPU&quot;,
+    &quot;units&quot;: &quot;%&quot;,
+    &quot;icon&quot;: &quot;&quot;,
+    &quot;prefix&quot;: &quot;&quot;,
+    &quot;suffix&quot;: &quot;&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;from&quot;: &quot;0&quot;,
+        &quot;color&quot;: &quot;#5cd65c&quot;
+      },
+      {
+        &quot;from&quot;: &quot;60&quot;,
+        &quot;color&quot;: &quot;#ffc800&quot;
+      },
+      {
+        &quot;from&quot;: &quot;85&quot;,
+        &quot;color&quot;: &quot;#ea5353&quot;
+      }
+    ],
+    &quot;min&quot;: 0,
+    &quot;max&quot;: 100,
+    &quot;sizeThickness&quot;: 16,
+    &quot;sizeGap&quot;: 4,
+    &quot;sizeKeyThickness&quot;: 8,
+    &quot;styleRounded&quot;: true,
+    &quot;styleGlow&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 940,
+    &quot;y&quot;: 40,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;g_ram&quot;,
+    &quot;type&quot;: &quot;ui-gauge&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;RAM&quot;,
+    &quot;group&quot;: &quot;grp_rec&quot;,
+    &quot;order&quot;: 2,
+    &quot;width&quot;: 3,
+    &quot;height&quot;: 3,
+    &quot;gtype&quot;: &quot;gauge-half&quot;,
+    &quot;gstyle&quot;: &quot;needle&quot;,
+    &quot;title&quot;: &quot;RAM&quot;,
+    &quot;units&quot;: &quot;%&quot;,
+    &quot;icon&quot;: &quot;&quot;,
+    &quot;prefix&quot;: &quot;&quot;,
+    &quot;suffix&quot;: &quot;&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;from&quot;: &quot;0&quot;,
+        &quot;color&quot;: &quot;#5cd65c&quot;
+      },
+      {
+        &quot;from&quot;: &quot;60&quot;,
+        &quot;color&quot;: &quot;#ffc800&quot;
+      },
+      {
+        &quot;from&quot;: &quot;85&quot;,
+        &quot;color&quot;: &quot;#ea5353&quot;
+      }
+    ],
+    &quot;min&quot;: 0,
+    &quot;max&quot;: 100,
+    &quot;sizeThickness&quot;: 16,
+    &quot;sizeGap&quot;: 4,
+    &quot;sizeKeyThickness&quot;: 8,
+    &quot;styleRounded&quot;: true,
+    &quot;styleGlow&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 940,
+    &quot;y&quot;: 80,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;g_temp&quot;,
+    &quot;type&quot;: &quot;ui-gauge&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;Temp. CPU&quot;,
+    &quot;group&quot;: &quot;grp_rec&quot;,
+    &quot;order&quot;: 3,
+    &quot;width&quot;: 3,
+    &quot;height&quot;: 3,
+    &quot;gtype&quot;: &quot;gauge-half&quot;,
+    &quot;gstyle&quot;: &quot;needle&quot;,
+    &quot;title&quot;: &quot;Temp. CPU&quot;,
+    &quot;units&quot;: &quot;°C&quot;,
+    &quot;icon&quot;: &quot;&quot;,
+    &quot;prefix&quot;: &quot;&quot;,
+    &quot;suffix&quot;: &quot;&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;from&quot;: &quot;0&quot;,
+        &quot;color&quot;: &quot;#5cd65c&quot;
+      },
+      {
+        &quot;from&quot;: &quot;65&quot;,
+        &quot;color&quot;: &quot;#ffc800&quot;
+      },
+      {
+        &quot;from&quot;: &quot;80&quot;,
+        &quot;color&quot;: &quot;#ea5353&quot;
+      }
+    ],
+    &quot;min&quot;: 20,
+    &quot;max&quot;: 90,
+    &quot;sizeThickness&quot;: 16,
+    &quot;sizeGap&quot;: 4,
+    &quot;sizeKeyThickness&quot;: 8,
+    &quot;styleRounded&quot;: true,
+    &quot;styleGlow&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 950,
+    &quot;y&quot;: 120,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;g_sd&quot;,
+    &quot;type&quot;: &quot;ui-gauge&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;microSD&quot;,
+    &quot;group&quot;: &quot;grp_alm&quot;,
+    &quot;order&quot;: 1,
+    &quot;width&quot;: 3,
+    &quot;height&quot;: 3,
+    &quot;gtype&quot;: &quot;gauge-34&quot;,
+    &quot;gstyle&quot;: &quot;needle&quot;,
+    &quot;title&quot;: &quot;microSD (sistema)&quot;,
+    &quot;units&quot;: &quot;%&quot;,
+    &quot;icon&quot;: &quot;&quot;,
+    &quot;prefix&quot;: &quot;&quot;,
+    &quot;suffix&quot;: &quot;&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;from&quot;: &quot;0&quot;,
+        &quot;color&quot;: &quot;#5cd65c&quot;
+      },
+      {
+        &quot;from&quot;: &quot;75&quot;,
+        &quot;color&quot;: &quot;#ffc800&quot;
+      },
+      {
+        &quot;from&quot;: &quot;90&quot;,
+        &quot;color&quot;: &quot;#ea5353&quot;
+      }
+    ],
+    &quot;min&quot;: 0,
+    &quot;max&quot;: 100,
+    &quot;sizeThickness&quot;: 16,
+    &quot;sizeGap&quot;: 4,
+    &quot;sizeKeyThickness&quot;: 8,
+    &quot;styleRounded&quot;: true,
+    &quot;styleGlow&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 950,
+    &quot;y&quot;: 160,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;g_hdd&quot;,
+    &quot;type&quot;: &quot;ui-gauge&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;HDD&quot;,
+    &quot;group&quot;: &quot;grp_alm&quot;,
+    &quot;order&quot;: 2,
+    &quot;width&quot;: 3,
+    &quot;height&quot;: 3,
+    &quot;gtype&quot;: &quot;gauge-34&quot;,
+    &quot;gstyle&quot;: &quot;needle&quot;,
+    &quot;title&quot;: &quot;HDD (datos)&quot;,
+    &quot;units&quot;: &quot;%&quot;,
+    &quot;icon&quot;: &quot;&quot;,
+    &quot;prefix&quot;: &quot;&quot;,
+    &quot;suffix&quot;: &quot;&quot;,
+    &quot;segments&quot;: [
+      {
+        &quot;from&quot;: &quot;0&quot;,
+        &quot;color&quot;: &quot;#5cd65c&quot;
+      },
+      {
+        &quot;from&quot;: &quot;75&quot;,
+        &quot;color&quot;: &quot;#ffc800&quot;
+      },
+      {
+        &quot;from&quot;: &quot;90&quot;,
+        &quot;color&quot;: &quot;#ea5353&quot;
+      }
+    ],
+    &quot;min&quot;: 0,
+    &quot;max&quot;: 100,
+    &quot;sizeThickness&quot;: 16,
+    &quot;sizeGap&quot;: 4,
+    &quot;sizeKeyThickness&quot;: 8,
+    &quot;styleRounded&quot;: true,
+    &quot;styleGlow&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 940,
+    &quot;y&quot;: 200,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;t_hdd&quot;,
+    &quot;type&quot;: &quot;ui-text&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;group&quot;: &quot;grp_alm&quot;,
+    &quot;order&quot;: 3,
+    &quot;width&quot;: 0,
+    &quot;height&quot;: 0,
+    &quot;name&quot;: &quot;Disco HDD&quot;,
+    &quot;label&quot;: &quot;Disco HDD&quot;,
+    &quot;format&quot;: &quot;{{msg.payload}}&quot;,
+    &quot;layout&quot;: &quot;row-spread&quot;,
+    &quot;style&quot;: false,
+    &quot;font&quot;: &quot;&quot;,
+    &quot;fontSize&quot;: 16,
+    &quot;color&quot;: &quot;#717171&quot;,
+    &quot;wrapText&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 950,
+    &quot;y&quot;: 240,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;t_mq&quot;,
+    &quot;type&quot;: &quot;ui-text&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;group&quot;: &quot;grp_svc&quot;,
+    &quot;order&quot;: 1,
+    &quot;width&quot;: 0,
+    &quot;height&quot;: 0,
+    &quot;name&quot;: &quot;Mosquitto&quot;,
+    &quot;label&quot;: &quot;Mosquitto&quot;,
+    &quot;format&quot;: &quot;{{msg.payload}}&quot;,
+    &quot;layout&quot;: &quot;row-spread&quot;,
+    &quot;style&quot;: false,
+    &quot;font&quot;: &quot;&quot;,
+    &quot;fontSize&quot;: 16,
+    &quot;color&quot;: &quot;#717171&quot;,
+    &quot;wrapText&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 950,
+    &quot;y&quot;: 280,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;t_nr&quot;,
+    &quot;type&quot;: &quot;ui-text&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;group&quot;: &quot;grp_svc&quot;,
+    &quot;order&quot;: 2,
+    &quot;width&quot;: 0,
+    &quot;height&quot;: 0,
+    &quot;name&quot;: &quot;Node-RED&quot;,
+    &quot;label&quot;: &quot;Node-RED&quot;,
+    &quot;format&quot;: &quot;{{msg.payload}}&quot;,
+    &quot;layout&quot;: &quot;row-spread&quot;,
+    &quot;style&quot;: false,
+    &quot;font&quot;: &quot;&quot;,
+    &quot;fontSize&quot;: 16,
+    &quot;color&quot;: &quot;#717171&quot;,
+    &quot;wrapText&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 950,
+    &quot;y&quot;: 320,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;t_smb&quot;,
+    &quot;type&quot;: &quot;ui-text&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;group&quot;: &quot;grp_svc&quot;,
+    &quot;order&quot;: 3,
+    &quot;width&quot;: 0,
+    &quot;height&quot;: 0,
+    &quot;name&quot;: &quot;Samba&quot;,
+    &quot;label&quot;: &quot;Samba&quot;,
+    &quot;format&quot;: &quot;{{msg.payload}}&quot;,
+    &quot;layout&quot;: &quot;row-spread&quot;,
+    &quot;style&quot;: false,
+    &quot;font&quot;: &quot;&quot;,
+    &quot;fontSize&quot;: 16,
+    &quot;color&quot;: &quot;#717171&quot;,
+    &quot;wrapText&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 940,
+    &quot;y&quot;: 360,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;t_up&quot;,
+    &quot;type&quot;: &quot;ui-text&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;group&quot;: &quot;grp_svc&quot;,
+    &quot;order&quot;: 4,
+    &quot;width&quot;: 0,
+    &quot;height&quot;: 0,
+    &quot;name&quot;: &quot;Encendido&quot;,
+    &quot;label&quot;: &quot;Encendido&quot;,
+    &quot;format&quot;: &quot;{{msg.payload}}&quot;,
+    &quot;layout&quot;: &quot;row-spread&quot;,
+    &quot;style&quot;: false,
+    &quot;font&quot;: &quot;&quot;,
+    &quot;fontSize&quot;: 16,
+    &quot;color&quot;: &quot;#717171&quot;,
+    &quot;wrapText&quot;: false,
+    &quot;className&quot;: &quot;&quot;,
+    &quot;x&quot;: 950,
+    &quot;y&quot;: 400,
+    &quot;wires&quot;: []
+  },
+  {
+    &quot;id&quot;: &quot;mq_out&quot;,
+    &quot;type&quot;: &quot;mqtt out&quot;,
+    &quot;z&quot;: &quot;srv_tab&quot;,
+    &quot;name&quot;: &quot;Publicar estado&quot;,
+    &quot;topic&quot;: &quot;&quot;,
+    &quot;qos&quot;: &quot;0&quot;,
+    &quot;retain&quot;: &quot;&quot;,
+    &quot;respTopic&quot;: &quot;&quot;,
+    &quot;contentType&quot;: &quot;&quot;,
+    &quot;userProps&quot;: &quot;&quot;,
+    &quot;correl&quot;: &quot;&quot;,
+    &quot;expiry&quot;: &quot;&quot;,
+    &quot;broker&quot;: &quot;&quot;,
+    &quot;x&quot;: 960,
+    &quot;y&quot;: 440,
+    &quot;wires&quot;: []
+  }
+]</code></pre></details></section></main><script>
+document.querySelectorAll('pre').forEach(p=>{const b=document.createElement('button');b.className='copiar';b.textContent='Copiar';
+b.onclick=()=>{navigator.clipboard.writeText(p.innerText.replace(/^Copiar/,'').replace(/Copiar$/,'').trim()).then(()=>{b.textContent='Copiado ✓';setTimeout(()=>b.textContent='Copiar',1500)})};p.appendChild(b)});
+function filtrar(q){q=q.toLowerCase();document.querySelectorAll('main section').forEach(s=>{s.style.display=!q||s.innerText.toLowerCase().includes(q)?'':'none'})}
+</script></body></html>

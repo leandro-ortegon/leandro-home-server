@@ -1,0 +1,10 @@
+# /etc/systemd/system/backup-servidor.service
+[Unit]
+Description=LEANDRO HOME SERVER - copia de seguridad diaria
+RequiresMountsFor=/srv/servidor
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/backup-servidor.sh
+Nice=10
+IOSchedulingClass=idle
