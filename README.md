@@ -1,4 +1,4 @@
-# LEANDRO HOME SERVER
+# USUARIO HOME SERVER
 **Personal Home Infrastructure & IoT Server**
 
 Servidor doméstico 24/7 basado en una Orange Pi PC Plus V1.1 que centraliza la domótica (ESP32 + MQTT), el almacenamiento en red, la monitorización y las copias de seguridad. Se administra de forma remota desde un ASUS Vivobook 16 con Windows 11.
@@ -31,7 +31,7 @@ Más detalles en [docs/hardware.md](docs/hardware.md).
 | Node-RED Dashboard 2.0 | 1.36.1 | Activo en `/dashboard` |
 | log2ram | — | Activo (`/var/log` en RAM, 50 MB) |
 | Samba | 4.22.11 | Activo, SMB3, sin invitados |
-| Tailscale | 1.104.7 | `leandro-home-server` · 100.76.238.119 |
+| Tailscale | 1.104.7 | `usuario-home-server` · 100.76.238.119 |
 | UFW | Debian | Activo: LAN + Tailscale |
 | Taildrop | servicio `taildrop-recibir` | Archivos del celular/ASUS → `Z:\Taildrop` |
 | SQLite | 3.49.1 (node:sqlite) / CLI 3.46.1 | Historial en `/srv/servidor/bases_datos/domotica.db` |
@@ -59,7 +59,7 @@ Ver [docs/arquitectura.md](docs/arquitectura.md).
 
 | Servicio | Dirección | Notas |
 |---|---|---|
-| SSH | `ssh leandro@192.168.1.9` | Llave; contraseña solo como emergencia en la LAN |
+| SSH | `ssh usuario@192.168.1.9` | Llave; contraseña solo como emergencia en la LAN |
 | Node-RED (editor) | http://192.168.1.9:1880 | Requiere usuario |
 | Dashboard | http://192.168.1.9:1880/dashboard | Sin contraseña (solo LAN/Tailscale) |
 | Panel del servidor | http://192.168.1.9:1880/dashboard/servidor | CPU, RAM, temperatura, discos, servicios |
@@ -71,10 +71,10 @@ Ver [docs/arquitectura.md](docs/arquitectura.md).
 ### Fuera de casa (Tailscale)
 | Servicio | Dirección |
 |---|---|
-| SSH | `ssh leandro@leandro-home-server` |
-| Dashboard | http://leandro-home-server:1880/dashboard |
-| Samba | `\\leandro-home-server\archivos` |
-| Enviar archivos | Compartir → Tailscale → leandro-home-server (llegan a `Z:\Taildrop`) |
+| SSH | `ssh usuario@usuario-home-server` |
+| Dashboard | http://usuario-home-server:1880/dashboard |
+| Samba | `\\usuario-home-server\archivos` |
+| Enviar archivos | Compartir → Tailscale → usuario-home-server (llegan a `Z:\Taildrop`) |
 
 ## 5. Plan de etapas
 
@@ -123,7 +123,7 @@ Ver [docs/arquitectura.md](docs/arquitectura.md).
 | Recursos en reposo | ✅ 798 MB de RAM disponibles · 46–50 °C · carga 0 |
 | Tailscale | ✅ Servidor, ASUS (conexión directa) y celular A72 |
 | Editor Node-RED | ✅ 401 sin sesión |
-| MQTT | ✅ Usuarios leandro, nodered y esp32-habitacion · ESP32 `online` |
+| MQTT | ✅ Usuarios usuario, nodered y esp32-habitacion · ESP32 `online` |
 | SQLite | ✅ 190 lecturas, 11 eventos, 6 cambios de relé |
 | Backups | ✅ Primera copia OK · próxima a las 03:15 |
 | SSH | ✅ root no, contraseña solo en la LAN |
@@ -134,7 +134,7 @@ Comando de auditoría completo: [`scripts/verificacion-final.sh`](scripts/verifi
 ## 8. Pendientes recomendados
 1. **Reservar la IP 192.168.1.9** para la Orange Pi en el router (reserva DHCP por MAC); el ESP32 la usa fija.
 2. **Rotar credenciales** compartidas en texto: token de Telegram (@BotFather `/revoke`), credenciales de Sinric Pro y `OTA_CLAVE`.
-3. **Regla 3-2-1:** copiar periódicamente `\\leandro-home-server\backups` fuera del servidor.
+3. **Regla 3-2-1:** copiar periódicamente `\\usuario-home-server\backups` fuera del servidor.
 4. **Sensor:** valorar el cambio de DHT11 a DHT22 (más preciso en humedad).
 5. Opcional: contraseña en el dashboard (`httpNodeAuth`) si se comparte el WiFi con más personas.
 6. Opcional: desinstalar `node-red-node-pi-gpio` (solo Raspberry Pi).
