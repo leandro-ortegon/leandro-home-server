@@ -31,7 +31,7 @@ Más detalles en [docs/hardware.md](docs/hardware.md).
 | Node-RED Dashboard 2.0 | 1.36.1 | Activo en `/dashboard` |
 | log2ram | — | Activo (`/var/log` en RAM, 50 MB) |
 | Samba | 4.22.11 | Activo, SMB3, sin invitados |
-| Tailscale | 1.104.7 | `usuario-home-server` · 100.76.238.119 |
+| Tailscale | 1.104.7 | `usuario-home-server` · x.x.x.x |
 | UFW | Debian | Activo: LAN + Tailscale |
 | Taildrop | servicio `taildrop-recibir` | Archivos del celular/ASUS → `Z:\Taildrop` |
 | SQLite | 3.49.1 (node:sqlite) / CLI 3.46.1 | Historial en `/srv/servidor/bases_datos/domotica.db` |
@@ -59,12 +59,12 @@ Ver [docs/arquitectura.md](docs/arquitectura.md).
 
 | Servicio | Dirección | Notas |
 |---|---|---|
-| SSH | `ssh usuario@192.168.1.9` | Llave; contraseña solo como emergencia en la LAN |
-| Node-RED (editor) | http://192.168.1.9:1880 | Requiere usuario |
-| Dashboard | http://192.168.1.9:1880/dashboard | Sin contraseña (solo LAN/Tailscale) |
-| Panel del servidor | http://192.168.1.9:1880/dashboard/servidor | CPU, RAM, temperatura, discos, servicios |
-| MQTT | `192.168.1.9:1883` | Requiere usuario/contraseña |
-| Samba | `\\192.168.1.9\archivos` · `compartido` · `backups` | Unidad Z: = archivos |
+| SSH | `ssh usuario@x.x.x.x` | Llave; contraseña solo como emergencia en la LAN |
+| Node-RED (editor) | http://x.x.x.x:1880 | Requiere usuario |
+| Dashboard | http://x.x.x.x:1880/dashboard | Sin contraseña (solo LAN/Tailscale) |
+| Panel del servidor | http://x.x.x.x:1880/dashboard/servidor | CPU, RAM, temperatura, discos, servicios |
+| MQTT | `x.x.x.x:1883` | Requiere usuario/contraseña |
+| Samba | `\\x.x.x.x\archivos` · `compartido` · `backups` | Unidad Z: = archivos |
 
 > ⚠️ La IP la asigna el router por DHCP. Conviene reservarla en el router.
 
@@ -132,7 +132,7 @@ Ver [docs/arquitectura.md](docs/arquitectura.md).
 Comando de auditoría completo: [`scripts/verificacion-final.sh`](scripts/verificacion-final.sh).
 
 ## 8. Pendientes recomendados
-1. **Reservar la IP 192.168.1.9** para la Orange Pi en el router (reserva DHCP por MAC); el ESP32 la usa fija.
+1. **Reservar la IP x.x.x.x** para la Orange Pi en el router (reserva DHCP por MAC); el ESP32 la usa fija.
 2. **Rotar credenciales** compartidas en texto: token de Telegram (@BotFather `/revoke`), credenciales de Sinric Pro y `OTA_CLAVE`.
 3. **Regla 3-2-1:** copiar periódicamente `\\usuario-home-server\backups` fuera del servidor.
 4. **Sensor:** valorar el cambio de DHT11 a DHT22 (más preciso en humedad).
